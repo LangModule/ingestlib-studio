@@ -216,3 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / Vite frontend
+node_modules/
+frontend/dist/
+*.local
+
+# Personal settings — same pattern as ingestlib
+.env
+config.yaml
+
+# macOS
+*.DS_Store
