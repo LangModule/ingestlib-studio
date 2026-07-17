@@ -129,3 +129,54 @@ export interface DocumentSummary {
   created_at: string;
   thumbnail_url: string;
 }
+
+export interface SettingsView {
+  source: "wizard" | "env-var" | "cwd";
+  config_path: string;
+  editable: boolean;
+  profile: string;
+  region: string;
+  account_id: string;
+  bucket: string;
+  vector_store: VectorStore;
+  reranker: Reranker;
+  ocr_backend: "mlx-vlm-server" | "vllm-server";
+  ocr_url: string;
+  secrets_set: string[];
+}
+
+export interface BackfillStatus {
+  store: string;
+  documents: number;
+  in_store: number;
+  missing: number;
+}
+
+export interface BackfillJobResponse {
+  job_id: string;
+  status: "running" | "done" | "failed";
+  error: string | null;
+  durations: Record<string, number>;
+  pending: string[];
+  summary: { documents: number; vectors: number; store: string } | null;
+}
+
+export interface HitView {
+  doc_id: string;
+  chunk_id: number;
+  filename: string;
+  category: string;
+  section: string;
+  heading: string;
+  kind: string;
+  pages: number[];
+  region_ids: Record<number, number[]>;
+  markdown: string;
+  vector_score: number;
+  rerank_score: number | null;
+}
+
+export interface RetrieveResponse {
+  question: string;
+  hits: HitView[];
+}

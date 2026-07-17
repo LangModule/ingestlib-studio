@@ -227,3 +227,6 @@ class IngestJobRegistry(JobRegistry[IngestJob]):
 
 TRY_JOBS = TryJobRegistry()
 INGEST_JOBS = IngestJobRegistry()
+# Backfill runs are ingest-shaped (an event log plus a summary), and the
+# one-at-a-time admission rule fits them for the same reason.
+BACKFILL_JOBS = IngestJobRegistry()

@@ -1,10 +1,14 @@
 import type {
+  BackfillJobResponse,
+  BackfillStatus,
   CheckResult,
   CompleteRequest,
   DocumentSummary,
   DocumentView,
   IngestJobResponse,
   Reranker,
+  RetrieveResponse,
+  SettingsView,
   SetupStatus,
   StageEvent,
   TryJobResponse,
@@ -95,6 +99,9 @@ export const api = {
   ingestGet: (jobId: string) => get<IngestJobResponse>(`/api/ingest/${jobId}`),
   ingestEventsUrl: (jobId: string) => `/api/ingest/${jobId}/events`,
 
+  retrieve: (question: string, topK: number) =>
+    post<RetrieveResponse>("/api/retrieve", { question, top_k: topK }),
+
   documentsList: () => get<DocumentSummary[]>("/api/documents"),
   documentGet: (docId: string) => get<DocumentView>(`/api/documents/${docId}`),
   documentDelete: async (docId: string): Promise<void> => {
@@ -103,6 +110,23 @@ export const api = {
       throw await errorFrom(response, `delete failed with ${response.status}`);
     }
   },
+
+  settingsGet: () => get<SettingsView>("/api/settings"),
+  settingsUpdate: async (body: CompleteRequest): Promise<SettingsView> => {
+    const response = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw await errorFrom(response, `save failed with ${response.status}`);
+    }
+    return response.json();
+  },
+  backfillStatus: () => get<BackfillStatus>("/api/settings/backfill"),
+  backfillStart: () => post<BackfillJobResponse>("/api/settings/backfill", {}),
+  backfillGet: (jobId: string) => get<BackfillJobResponse>(`/api/settings/backfill/${jobId}`),
+  backfillEventsUrl: (jobId: string) => `/api/settings/backfill/${jobId}/events`,
 };
 
 // Follow a job's live event stream. Stage events accumulate into onEvents;

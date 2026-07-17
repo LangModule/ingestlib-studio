@@ -1,20 +1,29 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { DocumentView } from "../api/types";
 import { ReviewShell } from "../components/review/ReviewShell";
 import { Button, Card } from "../components/setup/ui";
 
 /* A stored document in the review shell, loaded from the S3 artifacts.
-   Delete removes the document everywhere: vectors first, then S3. */
+   A Playground click-through arrives with ?page= and ?regions= to land on
+   the cited spot. Delete removes the document everywhere: vectors first,
+   then S3. */
 
 export default function DocumentReview() {
   const { docId } = useParams<{ docId: string }>();
+  const [params] = useSearchParams();
   const [view, setView] = useState<DocumentView | null>(null);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
+
+  const initialPage = params.get("page") ? Number(params.get("page")) : undefined;
+  const pinnedRegions = params.get("regions")
+    ?.split(",")
+    .map(Number)
+    .filter((id) => !Number.isNaN(id));
 
   useEffect(() => {
     if (!docId) return;
@@ -67,6 +76,8 @@ export default function DocumentReview() {
     <div className="mx-auto max-w-7xl px-6 py-8">
       <ReviewShell
         document={view}
+        initialPage={initialPage}
+        pinnedRegions={pinnedRegions}
         footer={
           <div className="flex justify-between border-t border-line pt-4">
             <Button kind="ghost" onClick={() => navigate("/")}>← Library</Button>

@@ -27,9 +27,11 @@ def test_minimal_config_resolves_library_defaults(scratch):
     config = runtime.read_runtime_config()
     assert config is not None
     assert config.profile == "p"
+    assert config.account_id == "123456789012"
     assert config.bucket == "ingestlib-123456789012"
     assert config.vector_store == "pinecone"
     assert config.reranker == "jina"
+    assert config.ocr_backend == "mlx-vlm-server"
     assert config.ocr_url == "http://localhost:8111/"
     assert config.secrets == {}
 

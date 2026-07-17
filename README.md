@@ -8,17 +8,19 @@ points to its source on the page.
 
 ## Status
 
-The setup wizard, live stack status, Try it (in-memory pipeline runs with
-the page-by-page review shell), and Ingest (committed runs with live
-five-stage progress) are working. Library, Settings, and the retrieval
-playground are being built slice by slice.
+Every screen is working: the setup wizard, live stack status, Try it
+(in-memory pipeline runs with the page-by-page review shell), Ingest
+(committed runs with live five-stage progress), the Library (browse,
+review, and delete stored documents), the Playground (cited retrieval
+with click-through to the exact page region), and Settings (edit the
+configuration without a restart, plus vector-store backfill).
 
 ## Requirements
 
 - Python 3.12+ and [uv](https://github.com/astral-sh/uv)
 - Node.js 20+ (frontend build)
-- An AWS account with Bedrock access — the setup wizard walks you through
-  everything else, including the IAM policy it needs
+- An AWS account with Bedrock access. The setup wizard walks you through
+  everything else, including the IAM policy it needs.
 
 ## Run
 
@@ -43,11 +45,13 @@ backend on :8000; `make test` and `make lint` cover the backend.
 
 ```
 backend/    FastAPI, a thin wrapper over the published ingestlib package.
-            One package per feature (app/setup, later app/documents,
-            app/pipeline); routes stay thin. Never imports ingestlib while
+            One package per feature (app/setup, app/pipeline,
+            app/documents); routes stay thin. Never imports ingestlib while
             unconfigured, which is what makes zero-restart setup possible.
+            The layout and design rules are explained in backend/README.md.
 frontend/   Vite + React + TypeScript + Tailwind v4, in the brand derived
-            from the library's cover artwork.
+            from the library's cover artwork. The layout, design system,
+            and shared patterns are explained in frontend/README.md.
 ```
 
 ## License

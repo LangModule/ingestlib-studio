@@ -22,6 +22,8 @@ PRESIGN_SECONDS = 15 * 60
 
 # doc_id -> (shaped view, {(page_num, region_id): figure filename})
 _cache: OrderedDict[str, tuple[DocumentView, dict[tuple[int, int], str]]] = OrderedDict()
+# doc_id -> filename, for hit cards; one meta read per document, evicted on delete.
+_filenames: dict[str, str] = {}
 # Routes call this module through asyncio.to_thread, so cache access is locked.
 _lock = threading.Lock()
 
@@ -105,6 +107,21 @@ def page_image_url(doc_id: str, page_num: int) -> str:
     return _presign(artifacts.page_image_key(doc_id, page_num))
 
 
+def document_filename(doc_id: str) -> str:
+    """Cached filename lookup for retrieval hit cards."""
+    with _lock:
+        cached = _filenames.get(doc_id)
+    if cached is not None:
+        return cached
+
+    from ingestlib.storage import artifacts
+
+    filename = artifacts.get_document_meta(doc_id).filename
+    with _lock:
+        _filenames[doc_id] = filename
+    return filename
+
+
 def figure_image_url(doc_id: str, page_num: int, region_id: int) -> str | None:
     """Presigned URL for one figure crop, or None when no such figure exists.
 
@@ -116,6 +133,17 @@ def figure_image_url(doc_id: str, page_num: int, region_id: int) -> str | None:
     if filename is None:
         return None
     return _presign(f"documents/{doc_id}/parse/figures/{filename}")
+
+
+def clear_caches() -> None:
+    """Forget every cached view and filename.
+
+    Settings calls this after a configuration change: a new bucket means
+    the cached documents may no longer be the ones the registry would
+    serve."""
+    with _lock:
+        _cache.clear()
+        _filenames.clear()
 
 
 def delete(doc_id: str) -> dict[str, int]:
@@ -140,4 +168,5 @@ def delete(doc_id: str) -> dict[str, int]:
     objects = artifacts.delete_document(doc_id)
     with _lock:
         _cache.pop(doc_id, None)
+        _filenames.pop(doc_id, None)
     return {"vectors": vectors, "objects": objects}

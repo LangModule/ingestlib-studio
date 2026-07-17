@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { api } from "./api/client";
-import { BrandArt } from "./components/BrandArt";
 import { StatusPopover } from "./components/StatusPopover";
 import type { SetupStatus } from "./api/types";
 import DocumentReview from "./routes/DocumentReview";
 import Ingest from "./routes/Ingest";
 import Library from "./routes/Library";
+import Playground from "./routes/Playground";
+import Settings from "./routes/Settings";
 import Setup from "./routes/Setup";
 import TryIt from "./routes/TryIt";
 
@@ -54,16 +55,6 @@ function Shell({ status, children }: { status: SetupStatus; children: React.Reac
   );
 }
 
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="mx-auto max-w-6xl px-6 py-16 text-center">
-      <BrandArt />
-      <h1 className="text-lg font-semibold">{title}</h1>
-      <p className="mt-2 text-sm text-ink-soft">Coming in a later slice.</p>
-    </div>
-  );
-}
-
 export default function App() {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [error, setError] = useState("");
@@ -106,8 +97,8 @@ export default function App() {
           <Route path="/documents/:docId" element={<DocumentReview />} />
           <Route path="/try" element={<TryIt />} />
           <Route path="/ingest" element={<Ingest />} />
-          <Route path="/playground" element={<Placeholder title="Playground" />} />
-          <Route path="/settings" element={<Placeholder title="Settings" />} />
+          <Route path="/playground" element={<Playground />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/setup" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

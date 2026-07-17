@@ -222,8 +222,7 @@ node_modules/
 frontend/dist/
 *.local
 
-# Personal settings — same pattern as ingestlib
-.env
+# Personal settings, same pattern as ingestlib (.env is covered above)
 config.yaml
 
 # macOS

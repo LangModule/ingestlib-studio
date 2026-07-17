@@ -1,9 +1,10 @@
-"""Writes the wizard's answers to config.yaml and .env.
+"""Writes the collected answers to config.yaml and .env.
 
-config.yaml receives only the user's answers; omitted keys fall back to the
-library's defaults, which keeps the file small and lets library upgrades
-improve defaults without editing it. Secrets are written to .env with file
-mode 600 and never appear in the yaml.
+The wizard writes here first, and the Settings page rewrites through the
+same functions. config.yaml receives only the user's answers; omitted keys
+fall back to the library's defaults, which keeps the file small and lets
+library upgrades improve defaults without editing it. Secrets are written
+to .env with file mode 600 and never appear in the yaml.
 """
 import os
 

@@ -6,7 +6,7 @@ dev:
 	(cd frontend && npm run dev) & \
 	wait
 
-# simulate a fresh laptop even though this machine has config — tests the wizard
+# simulate a fresh laptop even when this machine has config; tests the wizard
 dev-unconfigured:
 	(cd backend && STUDIO_FORCE_UNCONFIGURED=1 uv run uvicorn app.main:app --reload --port 8000) & \
 	(cd frontend && npm run dev) & \

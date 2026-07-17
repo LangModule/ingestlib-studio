@@ -2,7 +2,7 @@ import type { Reranker, VectorStore } from "../../api/types";
 import type { Patch, WizardState } from "../../routes/Setup";
 import { Button, Card, Field, TextInput } from "./ui";
 
-interface SecretField {
+export interface SecretField {
   key: string;
   label: string;
   placeholder: string;
@@ -11,7 +11,7 @@ interface SecretField {
   optional?: boolean;
 }
 
-interface StoreOption {
+export interface StoreOption {
   id: VectorStore;
   title: string;
   blurb: string;
@@ -19,7 +19,7 @@ interface StoreOption {
   dockerHint?: string;
 }
 
-const STORES: StoreOption[] = [
+export const STORES: StoreOption[] = [
   {
     id: "sqlite",
     title: "SQLite",
@@ -90,7 +90,7 @@ const STORES: StoreOption[] = [
   },
 ];
 
-const RERANKERS: { id: Reranker; title: string; blurb: string }[] = [
+export const RERANKERS: { id: Reranker; title: string; blurb: string }[] = [
   {
     id: "jina",
     title: "Jina (recommended)",
@@ -108,7 +108,7 @@ const RERANKERS: { id: Reranker; title: string; blurb: string }[] = [
   },
 ];
 
-function ChoiceCard({
+export function ChoiceCard({
   selected,
   title,
   blurb,

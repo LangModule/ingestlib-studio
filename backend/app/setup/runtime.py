@@ -1,10 +1,10 @@
 """Reads the active configuration the same way the library would, without
 importing it.
 
-The status endpoints probe the exact targets the pipeline will use, so they
-need the configured values: the OCR server URL, the store choice, the bucket,
-and the secrets. Parsing the files directly keeps this package free of
-ingestlib imports.
+The status and settings endpoints work with the values the pipeline will
+actually use: the OCR server URL, the store choice, the bucket, and the
+secrets. Parsing the files directly keeps this package free of ingestlib
+imports.
 """
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,9 +20,11 @@ from app.setup.defaults import OCR_DEFAULT_URL
 class RuntimeConfig:
     profile: str
     region: str
+    account_id: str
     bucket: str
     vector_store: str
     reranker: str
+    ocr_backend: str
     ocr_url: str
     secrets: dict[str, str] = field(default_factory=dict)
 
@@ -53,9 +55,11 @@ def read_runtime_config() -> RuntimeConfig | None:
     return RuntimeConfig(
         profile=str(aws.get("profile", "")),
         region=str(aws.get("region", "us-east-1")),
+        account_id=account_id,
         bucket=str(s3.get("bucket", f"ingestlib-{account_id}")),
         vector_store=str(data.get("vector_store", "pinecone")),
         reranker=str(data.get("reranker", "jina")),
+        ocr_backend=str(paddle.get("backend", "mlx-vlm-server")),
         ocr_url=str(paddle.get("server_url", OCR_DEFAULT_URL)),
         secrets=secrets,
     )

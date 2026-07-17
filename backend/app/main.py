@@ -1,9 +1,8 @@
 """Application factory.
 
 Configures CORS for the Vite dev server, registers the API routers, and
-serves the built frontend when one exists. Later slices add the retrieve
-router here, guarded like every non-setup router by
-bootstrap.require_configured.
+serves the built frontend when one exists. Every router except setup is
+guarded by bootstrap.require_configured.
 """
 from pathlib import Path
 
@@ -12,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app import bootstrap
-from app.routes import documents, ingest, setup, tryit
+from app.routes import documents, ingest, playground, settings, setup, tryit
 
 _FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 
@@ -21,7 +20,7 @@ def create_app() -> FastAPI:
     # Resolve early so INGESTLIB_CONFIG is exported before the first request.
     bootstrap.resolve()
 
-    app = FastAPI(title="ingestlib-studio", version="0.1.0")
+    app = FastAPI(title="ingestlib-studio", version="1.0.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -32,6 +31,8 @@ def create_app() -> FastAPI:
     app.include_router(tryit.router)
     app.include_router(ingest.router)
     app.include_router(documents.router)
+    app.include_router(playground.router)
+    app.include_router(settings.router)
 
     # The directory exists only after a frontend build; `make serve` uses it.
     if _FRONTEND_DIST.is_dir():

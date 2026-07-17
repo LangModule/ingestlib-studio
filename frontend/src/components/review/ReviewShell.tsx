@@ -14,12 +14,18 @@ type Tab = (typeof TABS)[number];
 export function ReviewShell({
   document: doc, // aliased so the DOM global is never shadowed
   footer,
+  initialPage,
+  pinnedRegions,
 }: {
   document: DocumentView;
   footer?: React.ReactNode;
+  // A Playground click-through lands on the hit's page with its source
+  // regions pre-lit; the pin lasts until the first hover replaces it.
+  initialPage?: number;
+  pinnedRegions?: number[];
 }) {
-  const [pageNum, setPageNum] = useState(doc.pages[0]?.page_num ?? 1);
-  const [hovered, setHovered] = useState<number[]>([]);
+  const [pageNum, setPageNum] = useState(initialPage ?? doc.pages[0]?.page_num ?? 1);
+  const [hovered, setHovered] = useState<number[]>(pinnedRegions ?? []);
   const [tab, setTab] = useState<Tab>("Parsed");
 
   const page = doc.pages.find((candidate) => candidate.page_num === pageNum) ?? doc.pages[0];
