@@ -107,44 +107,48 @@ export function SplitTab({
         nameSeen.set(section.name, occurrence);
         const repeated = (nameTotals.get(section.name) ?? 0) > 1;
         return (
-        <div key={index} className="rounded-lg border border-line bg-card p-4">
-          <div className="flex items-baseline justify-between">
-            <span className="mono text-sm font-semibold">
-              {section.name}
-              {repeated && (
-                <span className="ml-1.5 text-[10px] font-normal text-ink-soft">
-                  part {occurrence}
-                </span>
-              )}
-            </span>
-            <span className="text-xs text-ink-soft">
-              {section.pages.length === 1
-                ? `page ${section.pages[0]}`
-                : `pages ${section.pages[0]}–${section.pages[section.pages.length - 1]}`}{" "}
-              · {section.chunk_ids.length} chunk(s)
-            </span>
+          <div key={index} className="rounded-lg border border-line bg-card p-4">
+            <div className="flex items-baseline justify-between">
+              <span className="mono text-sm font-semibold">
+                {section.name}
+                {repeated && (
+                  <span className="ml-1.5 text-[10px] font-normal text-ink-soft">
+                    part {occurrence}
+                  </span>
+                )}
+              </span>
+              <span className="text-xs text-ink-soft">
+                {section.pages.length === 1
+                  ? `page ${section.pages[0]}`
+                  : `pages ${section.pages[0]}–${section.pages[section.pages.length - 1]}`}{" "}
+                · {section.chunk_ids.length} chunk(s)
+              </span>
+            </div>
+            {section.description && (
+              <p className="mt-1 text-xs text-ink-soft">{section.description}</p>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {section.pages.map((pageNum) => (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => onNavigate(pageNum)}
+                  className={`overflow-hidden rounded-sm border transition ${
+                    pageNum === currentPage
+                      ? "border-accent ring-1 ring-accent"
+                      : "border-line hover:border-ink-soft"
+                  }`}
+                  title={`page ${pageNum}`}
+                >
+                  <img
+                    src={imageByPage.get(pageNum)}
+                    alt={`page ${pageNum}`}
+                    className="h-20 w-auto"
+                  />
+                </button>
+              ))}
+            </div>
           </div>
-          {section.description && (
-            <p className="mt-1 text-xs text-ink-soft">{section.description}</p>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {section.pages.map((pageNum) => (
-              <button
-                key={pageNum}
-                type="button"
-                onClick={() => onNavigate(pageNum)}
-                className={`overflow-hidden rounded-sm border transition ${
-                  pageNum === currentPage
-                    ? "border-accent ring-1 ring-accent"
-                    : "border-line hover:border-ink-soft"
-                }`}
-                title={`page ${pageNum}`}
-              >
-                <img src={imageByPage.get(pageNum)} alt={`page ${pageNum}`} className="h-20 w-auto" />
-              </button>
-            ))}
-          </div>
-        </div>
         );
       })}
     </div>
@@ -152,7 +156,7 @@ export function SplitTab({
 }
 
 export function ChunksTab({
-  document,
+  document: doc, // aliased so the DOM global is never shadowed
   currentPage,
   onHover,
   onNavigate,
@@ -168,7 +172,7 @@ export function ChunksTab({
         These are the exact units the vector store receives. Hover a chunk to light up its
         source regions on the current page.
       </p>
-      {document.chunks.map((chunk) => (
+      {doc.chunks.map((chunk) => (
         <div
           key={chunk.chunk_id}
           onMouseEnter={() => onHover(chunk.region_ids[currentPage] ?? [])}
@@ -177,7 +181,7 @@ export function ChunksTab({
         >
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="mono truncate text-xs text-ink-soft">
-              [{document.classify.category} › {chunk.section}
+              [{doc.classify.category} › {chunk.section}
               {chunk.heading && ` › ${chunk.heading}`}]
             </span>
             <span className="mono shrink-0 text-xs text-ink-soft">

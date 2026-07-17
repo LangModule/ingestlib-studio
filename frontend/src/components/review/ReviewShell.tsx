@@ -11,13 +11,19 @@ import { ChunksTab, ClassifyTab, ParsedTab, SplitTab } from "./tabs";
 const TABS = ["Parsed", "Classify", "Split", "Chunks"] as const;
 type Tab = (typeof TABS)[number];
 
-export function ReviewShell({ document, footer }: { document: DocumentView; footer?: React.ReactNode }) {
-  const [pageNum, setPageNum] = useState(document.pages[0]?.page_num ?? 1);
+export function ReviewShell({
+  document: doc, // aliased so the DOM global is never shadowed
+  footer,
+}: {
+  document: DocumentView;
+  footer?: React.ReactNode;
+}) {
+  const [pageNum, setPageNum] = useState(doc.pages[0]?.page_num ?? 1);
   const [hovered, setHovered] = useState<number[]>([]);
   const [tab, setTab] = useState<Tab>("Parsed");
 
-  const page = document.pages.find((candidate) => candidate.page_num === pageNum) ?? document.pages[0];
-  const pageIndex = document.pages.indexOf(page);
+  const page = doc.pages.find((candidate) => candidate.page_num === pageNum) ?? doc.pages[0];
+  const pageIndex = doc.pages.indexOf(page);
 
   const navigate = (target: number) => {
     setHovered([]);
@@ -28,23 +34,23 @@ export function ReviewShell({ document, footer }: { document: DocumentView; foot
     <div className="grid grid-cols-2 items-start gap-6">
       <div className="sticky top-6 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="mono truncate text-sm text-ink-soft">{document.filename}</span>
+          <span className="mono truncate text-sm text-ink-soft">{doc.filename}</span>
           <span className="flex items-center gap-2 text-sm">
             <button
               type="button"
-              onClick={() => navigate(document.pages[pageIndex - 1].page_num)}
+              onClick={() => navigate(doc.pages[pageIndex - 1].page_num)}
               disabled={pageIndex <= 0}
               className="rounded-md border border-line px-2 py-0.5 text-ink-soft hover:text-ink disabled:opacity-30"
             >
               ‹
             </button>
             <span className="mono text-xs text-ink-soft">
-              {page.page_num} / {document.page_count}
+              {page.page_num} / {doc.page_count}
             </span>
             <button
               type="button"
-              onClick={() => navigate(document.pages[pageIndex + 1].page_num)}
-              disabled={pageIndex >= document.pages.length - 1}
+              onClick={() => navigate(doc.pages[pageIndex + 1].page_num)}
+              disabled={pageIndex >= doc.pages.length - 1}
               className="rounded-md border border-line px-2 py-0.5 text-ink-soft hover:text-ink disabled:opacity-30"
             >
               ›
@@ -74,18 +80,18 @@ export function ReviewShell({ document, footer }: { document: DocumentView; foot
 
         <div className="max-h-[75vh] overflow-y-auto pr-1">
           {tab === "Parsed" && <ParsedTab page={page} hovered={hovered} onHover={setHovered} />}
-          {tab === "Classify" && <ClassifyTab classify={document.classify} />}
+          {tab === "Classify" && <ClassifyTab classify={doc.classify} />}
           {tab === "Split" && (
             <SplitTab
-              sections={document.sections}
-              pages={document.pages}
+              sections={doc.sections}
+              pages={doc.pages}
               currentPage={page.page_num}
               onNavigate={navigate}
             />
           )}
           {tab === "Chunks" && (
             <ChunksTab
-              document={document}
+              document={doc}
               currentPage={page.page_num}
               onHover={setHovered}
               onNavigate={navigate}

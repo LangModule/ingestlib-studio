@@ -13,6 +13,14 @@ async function get<T>(path: string): Promise<T> {
   return response.json();
 }
 
+// FastAPI puts human-readable messages in the detail field; anything else
+// (validation objects, empty bodies) falls back to the status code.
+async function errorFrom(response: Response, fallback: string): Promise<Error> {
+  const payload = await response.json().catch(() => null);
+  const detail = payload?.detail;
+  return new Error(typeof detail === "string" ? detail : fallback);
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
@@ -20,13 +28,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    // FastAPI puts human-readable messages in the detail field; anything
-    // else (validation objects, empty bodies) falls back to the status code.
-    const payload = await response.json().catch(() => null);
-    const detail = payload?.detail;
-    throw new Error(
-      typeof detail === "string" ? detail : `${path} responded with ${response.status}`,
-    );
+    throw await errorFrom(response, `${path} responded with ${response.status}`);
   }
   return response.json();
 }
@@ -65,11 +67,7 @@ export const api = {
     form.append("file", file);
     const response = await fetch("/api/try", { method: "POST", body: form });
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      const detail = payload?.detail;
-      throw new Error(
-        typeof detail === "string" ? detail : `upload failed with ${response.status}`,
-      );
+      throw await errorFrom(response, `upload failed with ${response.status}`);
     }
     return response.json();
   },
