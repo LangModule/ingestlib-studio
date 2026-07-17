@@ -38,7 +38,7 @@ def read_runtime_config() -> RuntimeConfig | None:
     config_path = Path(path)
     try:
         data = yaml.safe_load(config_path.read_text()) or {}
-    except OSError:
+    except (OSError, yaml.YAMLError):
         return None
 
     aws = data.get("aws") or {}
