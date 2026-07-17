@@ -228,3 +228,7 @@ config.yaml
 
 # macOS
 *.DS_Store
+
+# Internal design document and generated TypeScript build info
+plan.md
+tsconfig.tsbuildinfo

@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+/* The ingestlib brand, taken from assets/cover.png in the library repo:
+   documents dissolving into glowing vector cubes on a near-black ground.
+   Mint is the single interactive accent, amber is reserved for selection
+   highlights, and the wordmark is lowercase mono. The lemon provenance color
+   keeps its one job: marking where content came from on a page. */
+@theme {
+  --color-ground: #0b0e12;
+  --color-card: #12161d;
+  --color-field: #0d1117;
+  --color-ink: #e8ebf0;
+  --color-ink-soft: #8b93a1;
+  --color-line: #222a35;
+  --color-accent: #5fd4b4;
+  --color-accent-ink: #07110d;
+  --color-amber: #e5b76a;
+  --color-provenance: #fde047;
+  --color-lighttable: #080a0d;
+  --color-ok: #5fd4b4;
+  --color-ok-soft: #12241f;
+  --color-fail: #e5735f;
+  --color-fail-soft: #251310;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+}
+
+body {
+  @apply bg-ground text-ink antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  /* Soft stage lighting in the brand colors: a mint glow rising from the
+     bottom-right, where the artwork sits, and a faint amber wash top-left. */
+  background-image:
+    radial-gradient(640px 420px at 88% 96%, rgba(95, 212, 180, 0.07), transparent 70%),
+    radial-gradient(720px 480px at 6% -12%, rgba(229, 183, 106, 0.05), transparent 70%);
+  background-attachment: fixed;
+}
+
+/* Machine values such as identifiers, paths, and keys render in the mono face. */
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* The wordmark always renders in lowercase mono, like the cover. */
+.wordmark {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+/* Each wizard step fades and rises softly into place. */
+@keyframes step-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.step-enter {
+  animation: step-enter 0.25s ease-out;
+}
+
+/* Checks and selections pop in gently. */
+@keyframes check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.check-in {
+  animation: check-in 0.3s ease-out;
+}
+
+/* The artwork's particles drift slowly, in two layers for depth. */
+@keyframes drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(5px, -9px);
+  }
+}
+.particle-drift {
+  animation: drift 13s ease-in-out infinite alternate;
+}
+.particle-drift-slow {
+  animation: drift 21s ease-in-out infinite alternate-reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-enter,
+  .check-in,
+  .particle-drift,
+  .particle-drift-slow {
+    animation: none;
+  }
+}
