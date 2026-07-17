@@ -17,8 +17,6 @@ from app.pipeline.jobs import TryJob
 # grows linearly; beyond this cap the honest answer is "use Ingest".
 PAGE_CAP = 50
 
-SUPPORTED_SUFFIXES = (".pdf", ".docx", ".pptx")
-
 
 def count_pdf_pages(path: Path) -> int | None:
     """Page count for PDFs, None for office files.
@@ -50,7 +48,7 @@ async def run(job: TryJob) -> None:
                 f"use Ingest for big documents"
             )
 
-        await job.emit(stage, "start")
+        job.emit(stage, "start")
         started = time.perf_counter()
         job.parse_result = await aparse(job.upload_path)
         job.durations[stage] = round(time.perf_counter() - started, 2)
@@ -59,28 +57,28 @@ async def run(job: TryJob) -> None:
                 f"{job.parse_result.page_count} pages is over the try limit of "
                 f"{PAGE_CAP}; use Ingest for big documents"
             )
-        await job.emit(stage, "done", seconds=job.durations[stage])
+        job.emit(stage, "done", seconds=job.durations[stage])
 
         stage = "classify"
-        await job.emit(stage, "start")
+        job.emit(stage, "start")
         started = time.perf_counter()
         job.classify_result = await aclassify(job.parse_result)
         job.durations[stage] = round(time.perf_counter() - started, 2)
-        await job.emit(stage, "done", seconds=job.durations[stage])
+        job.emit(stage, "done", seconds=job.durations[stage])
 
         stage = "split"
-        await job.emit(stage, "start")
+        job.emit(stage, "start")
         started = time.perf_counter()
         job.split_result = await asplit(
             job.parse_result, category=job.classify_result.category
         )
         job.durations[stage] = round(time.perf_counter() - started, 2)
-        await job.emit(stage, "done", seconds=job.durations[stage])
+        job.emit(stage, "done", seconds=job.durations[stage])
 
-        await job.finish("done")
+        job.finish("done")
     except Exception as exc:  # noqa: BLE001
         # ValueErrors carry our own user-facing messages, such as the page
         # cap; other exceptions keep their type name for diagnosis.
         detail = str(exc) if isinstance(exc, ValueError) else f"{type(exc).__name__}: {exc}"
-        await job.emit(stage, "failed", detail=detail)
-        await job.finish("failed", error=detail)
+        job.emit(stage, "failed", detail=detail)
+        job.finish("failed", error=detail)

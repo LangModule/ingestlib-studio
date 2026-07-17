@@ -6,7 +6,6 @@ disappear with the job when it is evicted or deleted; that is by design.
 """
 import asyncio
 import hashlib
-import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
@@ -17,7 +16,8 @@ from app import bootstrap
 from app.documents.schemas import DocumentView
 from app.documents.shaping import shape_document
 from app.pipeline import tryit
-from app.pipeline.jobs import JOBS, JobStatus, TryJob
+from app.pipeline.jobs import SUPPORTED_SUFFIXES, TRY_JOBS, JobStatus, TryJob
+from app.routes.sse import stage_events
 
 router = APIRouter(
     prefix="/api/try", tags=["try"],
@@ -36,7 +36,7 @@ class TryJobResponse(BaseModel):
 
 
 def _get_job(job_id: str) -> TryJob:
-    job = JOBS.get(job_id)
+    job = TRY_JOBS.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="no such try job (it may have expired)")
     return job
@@ -69,17 +69,17 @@ def _response(job: TryJob, created: bool = False) -> TryJobResponse:
 @router.post("", response_model=TryJobResponse)
 async def start(file: UploadFile) -> TryJobResponse:
     filename = Path(file.filename or "upload").name
-    if not filename.lower().endswith(tryit.SUPPORTED_SUFFIXES):
+    if not filename.lower().endswith(SUPPORTED_SUFFIXES):
         raise HTTPException(
             status_code=422,
-            detail=f"unsupported file type; expected one of {list(tryit.SUPPORTED_SUFFIXES)}",
+            detail=f"unsupported file type; expected one of {list(SUPPORTED_SUFFIXES)}",
         )
     content = await file.read()
     if not content:
         raise HTTPException(status_code=422, detail="the uploaded file is empty")
 
     job_id = hashlib.sha256(content).hexdigest()
-    job, created = JOBS.create_or_get(job_id, filename)
+    job, created = TRY_JOBS.create_or_get(job_id, filename)
     if created:
         job.upload_path.write_bytes(content)
         job.task = asyncio.create_task(tryit.run(job))
@@ -93,17 +93,7 @@ def get(job_id: str) -> TryJobResponse:
 
 @router.get("/{job_id}/events")
 async def events(job_id: str) -> StreamingResponse:
-    job = _get_job(job_id)
-
-    async def stream():
-        async for event in job.stream():
-            yield f"data: {json.dumps(event.model_dump())}\n\n"
-
-    return StreamingResponse(
-        stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return stage_events(_get_job(job_id))
 
 
 @router.get("/{job_id}/pages/{page_num}/image")
@@ -125,6 +115,6 @@ def figure_image(job_id: str, page_num: int, region_id: int) -> Response:
 
 @router.delete("/{job_id}")
 def delete(job_id: str) -> dict[str, bool]:
-    if not JOBS.delete(job_id):
+    if not TRY_JOBS.delete(job_id):
         raise HTTPException(status_code=404, detail="no such try job")
     return {"deleted": True}

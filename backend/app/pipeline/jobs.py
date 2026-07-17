@@ -1,10 +1,13 @@
-"""In-memory registry for try-run jobs.
+"""In-memory registries for pipeline jobs.
 
-A try job holds a full ParseResult, page renders included, so memory is the
-constraint: the registry keeps at most two jobs, evicts the oldest first,
-and expires finished jobs after a fixed lifetime. Jobs are keyed by the
-SHA-256 of the uploaded bytes, so re-uploading the same file joins the
-existing run instead of starting a second one.
+Both job kinds are keyed by the SHA-256 of the uploaded bytes, so re-uploading
+the same file joins the existing job instead of starting a second one, and
+both expire a fixed time after finishing. They differ in what they hold: a
+try job keeps a full ParseResult in memory, page renders included, so its
+registry allows at most two jobs and evicts the oldest first; an ingest job
+persists everything to S3 and the vector store and keeps only a summary, but
+exactly one may run at a time, because a committed run saturates the OCR
+server on its own.
 """
 import asyncio
 import shutil
@@ -19,7 +22,10 @@ from pydantic import BaseModel
 
 JobStatus = Literal["running", "done", "failed"]
 
-MAX_JOBS = 2
+SUPPORTED_SUFFIXES = (".pdf", ".docx", ".pptx")
+
+MAX_TRY_JOBS = 2
+MAX_INGEST_JOBS = 8
 FINISHED_TTL_SECONDS = 15 * 60
 
 
@@ -32,12 +38,14 @@ class StageEvent(BaseModel):
     detail: str | None = None
 
 
-class TryJob:
-    """One try run: the uploaded file, the event log, and the in-memory results.
+class Job:
+    """Machinery shared by every job: the uploaded file, the event log, and
+    live streaming.
 
-    Results are plain attributes rather than typed fields because this module
-    must not import ingestlib; the orchestrator assigns them and the shaping
-    layer reads them."""
+    emit() and finish() are synchronous so the library's on_stage callback,
+    which is a plain function, can drive them directly."""
+
+    _workdir_prefix = "studio-job-"
 
     def __init__(self, job_id: str, filename: str) -> None:
         self.job_id = job_id
@@ -48,58 +56,84 @@ class TryJob:
         self.error: str | None = None
         self.durations: dict[str, float] = {}
         self.events: list[StageEvent] = []
-        self.workdir = Path(tempfile.mkdtemp(prefix="studio-try-"))
+        self.workdir = Path(tempfile.mkdtemp(prefix=self._workdir_prefix))
         self.upload_path = self.workdir / filename
         self.task: asyncio.Task | None = None
-        self.parse_result: Any = None
-        self.classify_result: Any = None
-        self.split_result: Any = None
-        self._changed = asyncio.Condition()
+        self._changed = asyncio.Event()
 
-    async def emit(self, stage: str, event: Literal["start", "done", "failed"], *,
-                   seconds: float | None = None, detail: str | None = None) -> None:
-        async with self._changed:
-            self.events.append(
-                StageEvent(stage=stage, event=event, seconds=seconds, detail=detail)
-            )
-            self._changed.notify_all()
+    def emit(self, stage: str, event: Literal["start", "done", "failed"], *,
+             seconds: float | None = None, detail: str | None = None) -> None:
+        self.events.append(
+            StageEvent(stage=stage, event=event, seconds=seconds, detail=detail)
+        )
+        self._changed.set()
 
-    async def finish(self, status: JobStatus, error: str | None = None) -> None:
+    def finish(self, status: JobStatus, error: str | None = None) -> None:
         self.status = status
         self.error = error
         self.finished_at = time.monotonic()
-        await self.emit("job", "done" if status == "done" else "failed", detail=error)
+        self.emit("job", "done" if status == "done" else "failed", detail=error)
 
     async def stream(self) -> AsyncIterator[StageEvent]:
         """Yield every event from the beginning, then follow live until the
         terminal "job" event. Late subscribers replay the full history."""
         index = 0
         while True:
-            async with self._changed:
-                while index >= len(self.events):
-                    await self._changed.wait()
             while index < len(self.events):
                 event = self.events[index]
                 index += 1
                 yield event
                 if event.stage == "job":
                     return
+            self._changed.clear()
+            if index >= len(self.events):
+                await self._changed.wait()
 
     def dispose(self) -> None:
-        """Free everything the job holds: the background task, the uploaded
-        file, and the in-memory results."""
+        """Free everything the job holds: the background task and the
+        uploaded file. Subclasses release their results on top."""
         if self.task is not None and not self.task.done():
             self.task.cancel()
         shutil.rmtree(self.workdir, ignore_errors=True)
+
+
+class TryJob(Job):
+    """One try run, holding its results in memory.
+
+    Results are plain attributes rather than typed fields because this module
+    must not import ingestlib; the orchestrator assigns them and the shaping
+    layer reads them."""
+
+    _workdir_prefix = "studio-try-"
+
+    def __init__(self, job_id: str, filename: str) -> None:
+        super().__init__(job_id, filename)
+        self.parse_result: Any = None
+        self.classify_result: Any = None
+        self.split_result: Any = None
+
+    def dispose(self) -> None:
+        super().dispose()
         self.parse_result = None
         self.classify_result = None
         self.split_result = None
 
 
+class IngestJob(Job):
+    """One committed run. The pipeline persists everything to S3 and the
+    vector store, so the job keeps only a summary of the outcome."""
+
+    _workdir_prefix = "studio-ingest-"
+
+    def __init__(self, job_id: str, filename: str) -> None:
+        super().__init__(job_id, filename)
+        self.summary: dict[str, Any] | None = None
+
+
 class TryJobRegistry:
     """Bounded, ordered store of try jobs. Eviction always calls dispose()."""
 
-    def __init__(self, max_jobs: int = MAX_JOBS,
+    def __init__(self, max_jobs: int = MAX_TRY_JOBS,
                  finished_ttl_seconds: float = FINISHED_TTL_SECONDS) -> None:
         self.max_jobs = max_jobs
         self.finished_ttl_seconds = finished_ttl_seconds
@@ -143,4 +177,68 @@ class TryJobRegistry:
         return True
 
 
-JOBS = TryJobRegistry()
+class IngestBusy(Exception):
+    """Raised when a new document arrives while another ingest is running."""
+
+
+class IngestJobRegistry:
+    """Bounded, ordered store of ingest jobs. One job runs at a time."""
+
+    def __init__(self, max_jobs: int = MAX_INGEST_JOBS,
+                 finished_ttl_seconds: float = FINISHED_TTL_SECONDS) -> None:
+        self.max_jobs = max_jobs
+        self.finished_ttl_seconds = finished_ttl_seconds
+        self._jobs: OrderedDict[str, IngestJob] = OrderedDict()
+
+    def _evict_expired(self) -> None:
+        now = time.monotonic()
+        for job_id in list(self._jobs):
+            job = self._jobs[job_id]
+            expired = (
+                job.finished_at is not None
+                and now - job.finished_at > self.finished_ttl_seconds
+            )
+            if expired:
+                self._jobs.pop(job_id).dispose()
+
+    def running(self) -> IngestJob | None:
+        for job in self._jobs.values():
+            if job.status == "running":
+                return job
+        return None
+
+    def create_or_get(self, job_id: str, filename: str) -> tuple[IngestJob, bool]:
+        """Return (job, created). The same content joins the existing job;
+        a different document while one is running raises IngestBusy."""
+        self._evict_expired()
+        existing = self._jobs.get(job_id)
+        if existing is not None:
+            self._jobs.move_to_end(job_id)
+            return existing, False
+        active = self.running()
+        if active is not None:
+            raise IngestBusy(
+                f"{active.filename} is still ingesting; wait for it to finish"
+            )
+        # Everything in the registry is finished here, so eviction is safe.
+        while len(self._jobs) >= self.max_jobs:
+            _, oldest = self._jobs.popitem(last=False)
+            oldest.dispose()
+        job = IngestJob(job_id, filename)
+        self._jobs[job_id] = job
+        return job, True
+
+    def get(self, job_id: str) -> IngestJob | None:
+        self._evict_expired()
+        return self._jobs.get(job_id)
+
+    def delete(self, job_id: str) -> bool:
+        job = self._jobs.pop(job_id, None)
+        if job is None:
+            return False
+        job.dispose()
+        return True
+
+
+TRY_JOBS = TryJobRegistry()
+INGEST_JOBS = IngestJobRegistry()
