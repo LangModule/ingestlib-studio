@@ -137,7 +137,9 @@ export default function Ingest() {
           {timings && <p className="mono text-xs text-ink-soft">{timings}</p>}
           <div className="flex justify-between">
             <Button kind="ghost" onClick={reset}>Ingest another</Button>
-            <Button onClick={() => navigate("/")}>Open Library →</Button>
+            <Button onClick={() => navigate(`/documents/${summary.doc_id}`)}>
+              Open the document →
+            </Button>
           </div>
         </Card>
       </div>

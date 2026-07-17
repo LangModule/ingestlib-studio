@@ -71,3 +71,16 @@ class DocumentView(BaseModel):
     classify: ClassifyView
     sections: list[SectionView]
     chunks: list[ChunkView]
+
+
+class DocumentSummary(BaseModel):
+    """One library grid entry, straight from the registry's meta.json."""
+
+    doc_id: str
+    filename: str
+    page_count: int
+    category: str
+    sections: int
+    chunks: int
+    created_at: str
+    thumbnail_url: str

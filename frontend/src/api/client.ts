@@ -1,6 +1,8 @@
 import type {
   CheckResult,
   CompleteRequest,
+  DocumentSummary,
+  DocumentView,
   IngestJobResponse,
   Reranker,
   SetupStatus,
@@ -92,6 +94,15 @@ export const api = {
   },
   ingestGet: (jobId: string) => get<IngestJobResponse>(`/api/ingest/${jobId}`),
   ingestEventsUrl: (jobId: string) => `/api/ingest/${jobId}/events`,
+
+  documentsList: () => get<DocumentSummary[]>("/api/documents"),
+  documentGet: (docId: string) => get<DocumentView>(`/api/documents/${docId}`),
+  documentDelete: async (docId: string): Promise<void> => {
+    const response = await fetch(`/api/documents/${docId}`, { method: "DELETE" });
+    if (!response.ok) {
+      throw await errorFrom(response, `delete failed with ${response.status}`);
+    }
+  },
 };
 
 // Follow a job's live event stream. Stage events accumulate into onEvents;

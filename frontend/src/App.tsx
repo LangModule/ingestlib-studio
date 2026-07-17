@@ -4,6 +4,7 @@ import { api } from "./api/client";
 import { BrandArt } from "./components/BrandArt";
 import { StatusPopover } from "./components/StatusPopover";
 import type { SetupStatus } from "./api/types";
+import DocumentReview from "./routes/DocumentReview";
 import Ingest from "./routes/Ingest";
 import Library from "./routes/Library";
 import Setup from "./routes/Setup";
@@ -27,19 +28,23 @@ function Shell({ status, children }: { status: SetupStatus; children: React.Reac
             ingestlib<span className="text-accent">·</span>studio
           </Link>
           <nav className="flex items-center gap-5">
-            {NAV.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`text-sm ${
-                  location.pathname === item.to
-                    ? "font-semibold text-ink"
-                    : "text-ink-soft hover:text-ink"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {NAV.map((item) => {
+              // A stored document is a Library child, so Library stays lit.
+              const active =
+                location.pathname === item.to ||
+                (item.to === "/" && location.pathname.startsWith("/documents"));
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`text-sm ${
+                    active ? "font-semibold text-ink" : "text-ink-soft hover:text-ink"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
             <StatusPopover status={status} />
           </nav>
         </div>
@@ -98,6 +103,7 @@ export default function App() {
       <Shell status={status}>
         <Routes>
           <Route path="/" element={<Library />} />
+          <Route path="/documents/:docId" element={<DocumentReview />} />
           <Route path="/try" element={<TryIt />} />
           <Route path="/ingest" element={<Ingest />} />
           <Route path="/playground" element={<Placeholder title="Playground" />} />

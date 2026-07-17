@@ -1,6 +1,7 @@
-"""Presentation shaping: library models become UI-shaped views.
+"""Presentation shaping and the library registry.
 
-Pure transformation only: no model calls, no persistence, and no ingestlib
-imports at module level. Try it shapes in-memory results through this
-package; Library later shapes the same views from S3 artifacts.
+Library models become UI-shaped views: pure transformation plus S3 reads,
+with no model calls and no ingestlib imports at module level. Try it shapes
+in-memory results through this package; the Library shapes the same views
+from the S3 artifacts through registry.py.
 """

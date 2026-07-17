@@ -118,3 +118,14 @@ export interface IngestJobResponse {
   durations: Record<string, number>;
   summary: IngestSummary | null;
 }
+
+export interface DocumentSummary {
+  doc_id: string;
+  filename: string;
+  page_count: number;
+  category: string;
+  sections: number;
+  chunks: number;
+  created_at: string;
+  thumbnail_url: string;
+}
