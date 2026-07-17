@@ -1,8 +1,8 @@
 """Endpoints for Try it: run the pipeline on an upload without storing anything.
 
 Uploads are hashed, so re-sending the same file joins the existing job. Page
-and figure images stream straight from the in-memory ParseResult; when the
-job is evicted or deleted, they are gone — by design.
+and figure images stream straight from the in-memory ParseResult, so they
+disappear with the job when it is evicted or deleted; that is by design.
 """
 import asyncio
 import hashlib
@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app import bootstrap
 from app.documents.schemas import DocumentView
@@ -31,7 +31,7 @@ class TryJobResponse(BaseModel):
     status: JobStatus
     created: bool = False
     error: str | None = None
-    durations: dict[str, float] = {}
+    durations: dict[str, float] = Field(default_factory=dict)
     result: DocumentView | None = None
 
 
@@ -40,6 +40,17 @@ def _get_job(job_id: str) -> TryJob:
     if job is None:
         raise HTTPException(status_code=404, detail="no such try job (it may have expired)")
     return job
+
+
+def _get_page(job_id: str, page_num: int):
+    """The parsed page for an image route, with the shared failure handling."""
+    job = _get_job(job_id)
+    if job.parse_result is None:
+        raise HTTPException(status_code=409, detail="the parse stage has not finished yet")
+    try:
+        return job.parse_result.page_by_num(page_num)
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 def _response(job: TryJob, created: bool = False) -> TryJobResponse:
@@ -97,13 +108,7 @@ async def events(job_id: str) -> StreamingResponse:
 
 @router.get("/{job_id}/pages/{page_num}/image")
 def page_image(job_id: str, page_num: int) -> Response:
-    job = _get_job(job_id)
-    if job.parse_result is None:
-        raise HTTPException(status_code=409, detail="the parse stage has not finished yet")
-    try:
-        page = job.parse_result.page_by_num(page_num)
-    except IndexError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    page = _get_page(job_id, page_num)
     if page.image_bytes is None:
         raise HTTPException(status_code=404, detail=f"page {page_num} has no render")
     return Response(content=page.image_bytes, media_type="image/png")
@@ -111,13 +116,7 @@ def page_image(job_id: str, page_num: int) -> Response:
 
 @router.get("/{job_id}/pages/{page_num}/figures/{region_id}/image")
 def figure_image(job_id: str, page_num: int, region_id: int) -> Response:
-    job = _get_job(job_id)
-    if job.parse_result is None:
-        raise HTTPException(status_code=409, detail="the parse stage has not finished yet")
-    try:
-        page = job.parse_result.page_by_num(page_num)
-    except IndexError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    page = _get_page(job_id, page_num)
     for figure in page.figures:
         if figure.region_id == region_id and figure.image_bytes:
             return Response(content=figure.image_bytes, media_type="image/png")

@@ -62,6 +62,11 @@ def test_image_urls_hang_off_the_base_url(views):
     assert views.pages[0].image_url == "/api/try/j1/pages/1/image"
 
 
+def test_figure_regions_carry_their_crop_url(views):
+    region = views.pages[0].regions[0]
+    assert region.image_url == "/api/try/j1/pages/1/figures/5/image"
+
+
 def test_markdown_figure_refs_point_at_the_figure_route(views):
     assert "](/api/try/j1/pages/1/figures/5/image)" in views.pages[0].markdown
     assert "page1_region5_chart.png" not in views.pages[0].markdown

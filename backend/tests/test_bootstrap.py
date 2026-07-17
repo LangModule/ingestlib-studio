@@ -1,4 +1,4 @@
-"""Configuration resolution branches — pure, no network, no ingestlib."""
+"""Tests for configuration resolution. No network, no ingestlib."""
 import os
 import subprocess
 import sys
@@ -28,7 +28,7 @@ def test_home_config_exports_env_var_with_source_wizard(scratch, monkeypatch):
     configured, path, source = bootstrap.resolve()
     assert configured and source == "wizard"
     assert os.environ[bootstrap.CONFIG_ENV_VAR] == str(bootstrap.config_path())
-    # a second resolve now takes the env-var branch but keeps the wizard label
+    # A second resolve takes the env-var branch but keeps the wizard label.
     assert bootstrap.resolve() == (True, str(bootstrap.config_path()), "wizard")
 
 

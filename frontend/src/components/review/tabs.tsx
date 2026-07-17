@@ -33,6 +33,13 @@ export function ParsedTab({
           <span className="mb-1 block text-[10px] font-semibold tracking-wide text-ink-soft uppercase">
             {region.region_type} · {region.region_id}
           </span>
+          {region.image_url && (
+            <img
+              src={region.image_url}
+              alt={`${region.region_type} ${region.region_id}`}
+              className="mb-2 max-h-64 rounded-sm border border-line bg-white"
+            />
+          )}
           <Markdown>{region.content || region.text}</Markdown>
         </div>
       ))}
@@ -187,7 +194,7 @@ export function ChunksTab({
               ))}
             </span>
           </div>
-          <Markdown>{chunk.markdown}</Markdown>
+          <Markdown images="chip">{chunk.markdown}</Markdown>
         </div>
       ))}
     </div>

@@ -35,6 +35,7 @@ def rewrite_figure_refs(markdown: str, base_url: str) -> str:
 def shape_page(page: "PageResult", base_url: str) -> PageView:
     width = page.page_width or 1
     height = page.page_height or 1
+    figure_ids = {figure.region_id for figure in page.figures}
     return PageView(
         page_num=page.page_num,
         width=width,
@@ -49,6 +50,11 @@ def shape_page(page: "PageResult", base_url: str) -> PageView:
                 text=region.text,
                 content=region.content,
                 bbox=region.bbox.normalized(width, height),
+                image_url=(
+                    f"{base_url}/pages/{page.page_num}/figures/{region.region_id}/image"
+                    if region.region_id in figure_ids
+                    else None
+                ),
             )
             for region in page.regions
         ],

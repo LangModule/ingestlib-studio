@@ -39,6 +39,7 @@ export interface RegionView {
   text: string;
   content: string;
   bbox: [number, number, number, number];
+  image_url: string | null;
 }
 
 export interface PageView {

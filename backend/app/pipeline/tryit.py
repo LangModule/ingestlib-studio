@@ -9,6 +9,7 @@ studio's routes keeps the process free of the library until a configured
 user actually starts a run.
 """
 import time
+from pathlib import Path
 
 from app.pipeline.jobs import TryJob
 
@@ -19,7 +20,7 @@ PAGE_CAP = 50
 SUPPORTED_SUFFIXES = (".pdf", ".docx", ".pptx")
 
 
-def count_pdf_pages(path) -> int | None:
+def count_pdf_pages(path: Path) -> int | None:
     """Page count for PDFs, None for office files.
 
     Office files would need a LibreOffice conversion just to count, so their
@@ -78,6 +79,8 @@ async def run(job: TryJob) -> None:
 
         await job.finish("done")
     except Exception as exc:  # noqa: BLE001
-        detail = f"{type(exc).__name__}: {exc}" if not isinstance(exc, ValueError) else str(exc)
+        # ValueErrors carry our own user-facing messages, such as the page
+        # cap; other exceptions keep their type name for diagnosis.
+        detail = str(exc) if isinstance(exc, ValueError) else f"{type(exc).__name__}: {exc}"
         await job.emit(stage, "failed", detail=detail)
         await job.finish("failed", error=detail)

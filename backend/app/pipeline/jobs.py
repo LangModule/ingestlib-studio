@@ -56,11 +56,11 @@ class TryJob:
         self.split_result: Any = None
         self._changed = asyncio.Condition()
 
-    async def emit(self, stage: str, event: str, *, seconds: float | None = None,
-                   detail: str | None = None) -> None:
+    async def emit(self, stage: str, event: Literal["start", "done", "failed"], *,
+                   seconds: float | None = None, detail: str | None = None) -> None:
         async with self._changed:
             self.events.append(
-                StageEvent(stage=stage, event=event, seconds=seconds, detail=detail)  # type: ignore[arg-type]
+                StageEvent(stage=stage, event=event, seconds=seconds, detail=detail)
             )
             self._changed.notify_all()
 
@@ -97,6 +97,8 @@ class TryJob:
 
 
 class TryJobRegistry:
+    """Bounded, ordered store of try jobs. Eviction always calls dispose()."""
+
     def __init__(self, max_jobs: int = MAX_JOBS,
                  finished_ttl_seconds: float = FINISHED_TTL_SECONDS) -> None:
         self.max_jobs = max_jobs
@@ -116,7 +118,7 @@ class TryJobRegistry:
 
     def create_or_get(self, job_id: str, filename: str) -> tuple[TryJob, bool]:
         """Return (job, created). An existing job for the same content is
-        reused, whatever its state — the caller decides what that means."""
+        reused whatever its state; the caller decides what that means."""
         self._evict_expired()
         existing = self._jobs.get(job_id)
         if existing is not None:

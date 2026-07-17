@@ -13,6 +13,9 @@ class RegionView(BaseModel):
     text: str
     content: str
     bbox: tuple[float, float, float, float]
+    # Set for chart and figure regions whose crop was extracted: the Parsed
+    # view shows the visual next to its interpretation.
+    image_url: str | None = None
 
 
 class PageView(BaseModel):
