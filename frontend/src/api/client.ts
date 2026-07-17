@@ -1,17 +1,13 @@
 import type {
   CheckResult,
   CompleteRequest,
+  IngestJobResponse,
   Reranker,
   SetupStatus,
+  StageEvent,
   TryJobResponse,
   VectorStore,
 } from "./types";
-
-async function get<T>(path: string): Promise<T> {
-  const response = await fetch(path);
-  if (!response.ok) throw new Error(`${path} responded with ${response.status}`);
-  return response.json();
-}
 
 // FastAPI puts human-readable messages in the detail field; anything else
 // (validation objects, empty bodies) falls back to the status code.
@@ -19,6 +15,14 @@ async function errorFrom(response: Response, fallback: string): Promise<Error> {
   const payload = await response.json().catch(() => null);
   const detail = payload?.detail;
   return new Error(typeof detail === "string" ? detail : fallback);
+}
+
+async function get<T>(path: string): Promise<T> {
+  const response = await fetch(path);
+  if (!response.ok) {
+    throw await errorFrom(response, `${path} responded with ${response.status}`);
+  }
+  return response.json();
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -29,6 +33,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   });
   if (!response.ok) {
     throw await errorFrom(response, `${path} responded with ${response.status}`);
+  }
+  return response.json();
+}
+
+async function upload<T>(path: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(path, { method: "POST", body: form });
+  if (!response.ok) {
+    throw await errorFrom(response, `upload failed with ${response.status}`);
   }
   return response.json();
 }
@@ -62,17 +76,49 @@ export const api = {
   health: () => get<Record<string, CheckResult>>("/api/setup/health"),
   complete: (body: CompleteRequest) => post<SetupStatus>("/api/setup/complete", body),
 
-  tryStart: async (file: File): Promise<TryJobResponse> => {
-    const form = new FormData();
-    form.append("file", file);
-    const response = await fetch("/api/try", { method: "POST", body: form });
-    if (!response.ok) {
-      throw await errorFrom(response, `upload failed with ${response.status}`);
-    }
-    return response.json();
-  },
+  tryStart: (file: File) => upload<TryJobResponse>("/api/try", file),
   tryGet: (jobId: string) => get<TryJobResponse>(`/api/try/${jobId}`),
   tryEventsUrl: (jobId: string) => `/api/try/${jobId}/events`,
   tryDelete: (jobId: string) =>
     fetch(`/api/try/${jobId}`, { method: "DELETE" }).then(() => undefined),
+
+  ingestStart: (file: File) => upload<IngestJobResponse>("/api/ingest", file),
+  ingestFromTry: async (tryJobId: string): Promise<IngestJobResponse> => {
+    const response = await fetch(`/api/ingest/from-try/${tryJobId}`, { method: "POST" });
+    if (!response.ok) {
+      throw await errorFrom(response, `promotion failed with ${response.status}`);
+    }
+    return response.json();
+  },
+  ingestGet: (jobId: string) => get<IngestJobResponse>(`/api/ingest/${jobId}`),
+  ingestEventsUrl: (jobId: string) => `/api/ingest/${jobId}/events`,
 };
+
+// Follow a job's live event stream. Stage events accumulate into onEvents;
+// the terminal "job" event closes the stream and fires onTerminal, at which
+// point the caller refetches the job for its final state. The returned
+// source lets the caller close early on unmount.
+export function followStageEvents(
+  url: string,
+  onEvents: (events: StageEvent[]) => void,
+  onTerminal: () => void,
+  onLost: () => void,
+): EventSource {
+  const events: StageEvent[] = [];
+  const stream = new EventSource(url);
+  stream.onmessage = (message) => {
+    const event: StageEvent = JSON.parse(message.data);
+    if (event.stage === "job") {
+      stream.close();
+      onTerminal();
+      return;
+    }
+    events.push(event);
+    onEvents([...events]);
+  };
+  stream.onerror = () => {
+    stream.close();
+    onLost();
+  };
+  return stream;
+}

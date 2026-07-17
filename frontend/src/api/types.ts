@@ -97,3 +97,24 @@ export interface TryJobResponse {
   durations: Record<string, number>;
   result: DocumentView | null;
 }
+
+export interface IngestSummary {
+  status: "ingested" | "skipped";
+  doc_id: string;
+  category: string;
+  confidence: number;
+  pages: number;
+  sections: number;
+  chunks: number;
+  vectors: number;
+}
+
+export interface IngestJobResponse {
+  job_id: string;
+  filename: string;
+  status: "running" | "done" | "failed";
+  created: boolean;
+  error: string | null;
+  durations: Record<string, number>;
+  summary: IngestSummary | null;
+}

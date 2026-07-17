@@ -6,7 +6,6 @@ disappear with the job when it is evicted or deleted; that is by design.
 """
 import asyncio
 import hashlib
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
@@ -16,8 +15,9 @@ from app import bootstrap
 from app.documents.schemas import DocumentView
 from app.documents.shaping import shape_document
 from app.pipeline import tryit
-from app.pipeline.jobs import SUPPORTED_SUFFIXES, TRY_JOBS, JobStatus, TryJob
+from app.pipeline.jobs import TRY_JOBS, JobStatus, TryJob
 from app.routes.sse import stage_events
+from app.routes.uploads import read_document
 
 router = APIRouter(
     prefix="/api/try", tags=["try"],
@@ -68,16 +68,7 @@ def _response(job: TryJob, created: bool = False) -> TryJobResponse:
 
 @router.post("", response_model=TryJobResponse)
 async def start(file: UploadFile) -> TryJobResponse:
-    filename = Path(file.filename or "upload").name
-    if not filename.lower().endswith(SUPPORTED_SUFFIXES):
-        raise HTTPException(
-            status_code=422,
-            detail=f"unsupported file type; expected one of {list(SUPPORTED_SUFFIXES)}",
-        )
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=422, detail="the uploaded file is empty")
-
+    filename, content = await read_document(file)
     job_id = hashlib.sha256(content).hexdigest()
     job, created = TRY_JOBS.create_or_get(job_id, filename)
     if created:

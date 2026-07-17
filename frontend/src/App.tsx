@@ -4,6 +4,7 @@ import { api } from "./api/client";
 import { BrandArt } from "./components/BrandArt";
 import { StatusPopover } from "./components/StatusPopover";
 import type { SetupStatus } from "./api/types";
+import Ingest from "./routes/Ingest";
 import Library from "./routes/Library";
 import Setup from "./routes/Setup";
 import TryIt from "./routes/TryIt";
@@ -98,7 +99,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Library />} />
           <Route path="/try" element={<TryIt />} />
-          <Route path="/ingest" element={<Placeholder title="Ingest" />} />
+          <Route path="/ingest" element={<Ingest />} />
           <Route path="/playground" element={<Placeholder title="Playground" />} />
           <Route path="/settings" element={<Placeholder title="Settings" />} />
           <Route path="/setup" element={<Navigate to="/" replace />} />

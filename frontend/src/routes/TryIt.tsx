@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../api/client";
+import { useNavigate } from "react-router-dom";
+import { api, followStageEvents } from "../api/client";
 import type { StageEvent, TryJobResponse } from "../api/types";
 import { BrandArt } from "../components/BrandArt";
+import { Dropzone } from "../components/Dropzone";
 import { StageStepper } from "../components/pipeline/StageStepper";
 import { ReviewShell } from "../components/review/ReviewShell";
 import { Button, Card } from "../components/setup/ui";
 
 /* Try it: run the pipeline on a file without storing anything, then inspect
-   the result in the review shell. "Looks right → Ingest it" arrives with the
-   Ingest slice. */
+   the result in the review shell. "Looks right → Ingest it" promotes the
+   reviewed file into a committed run on the Ingest page. */
 
 const STAGES = ["parse", "classify", "split"];
 
@@ -20,9 +22,10 @@ type Phase =
 
 export default function TryIt() {
   const [phase, setPhase] = useState<Phase>({ name: "idle" });
-  const [dragging, setDragging] = useState(false);
+  const [promoting, setPromoting] = useState(false);
   const [ocrOnline, setOcrOnline] = useState<boolean | null>(null);
   const source = useRef<EventSource | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     api.status().then((status) => setOcrOnline(status.checks.ocr === "ok"));
@@ -30,32 +33,27 @@ export default function TryIt() {
   }, []);
 
   const follow = (job: TryJobResponse) => {
-    const events: StageEvent[] = [];
-    const stream = new EventSource(api.tryEventsUrl(job.job_id));
-    source.current = stream;
-    stream.onmessage = async (message) => {
-      const event: StageEvent = JSON.parse(message.data);
-      events.push(event);
-      if (event.stage === "job") {
-        stream.close();
+    source.current = followStageEvents(
+      api.tryEventsUrl(job.job_id),
+      (events) => setPhase({ name: "running", job, events }),
+      async () => {
         const finished = await api.tryGet(job.job_id);
         setPhase(
           finished.status === "done"
             ? { name: "done", job: finished }
             : { name: "failed", error: finished.error ?? "the run failed" },
         );
-        return;
-      }
-      setPhase({ name: "running", job, events: [...events] });
-    };
-    stream.onerror = () => {
-      stream.close();
-      setPhase({ name: "failed", error: "lost the event stream; the backend may have restarted" });
-    };
+      },
+      () =>
+        setPhase({
+          name: "failed",
+          error: "lost the event stream; the backend may have restarted",
+        }),
+    );
     setPhase({ name: "running", job, events: [] });
   };
 
-  const upload = async (file: File) => {
+  const uploadFile = async (file: File) => {
     try {
       const job = await api.tryStart(file);
       // Re-uploading a file that already finished skips straight to review.
@@ -72,6 +70,19 @@ export default function TryIt() {
     setPhase({ name: "idle" });
   };
 
+  const ingestIt = async () => {
+    if (phase.name !== "done") return;
+    setPromoting(true);
+    try {
+      // The backend still holds the try upload, so no re-upload is needed.
+      const job = await api.ingestFromTry(phase.job.job_id);
+      navigate(`/ingest?job=${job.job_id}`);
+    } catch (error) {
+      setPromoting(false);
+      setPhase({ name: "failed", error: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
   if (phase.name === "done" && phase.job.result) {
     return (
       <div className="mx-auto max-w-7xl px-6 py-8">
@@ -80,8 +91,8 @@ export default function TryIt() {
           footer={
             <div className="flex justify-between border-t border-line pt-4">
               <Button kind="ghost" onClick={discard}>Discard</Button>
-              <Button disabled title="Arrives with the Ingest page">
-                Looks right → Ingest it
+              <Button onClick={ingestIt} disabled={promoting}>
+                {promoting ? "Starting…" : "Looks right → Ingest it"}
               </Button>
             </div>
           }
@@ -136,36 +147,11 @@ export default function TryIt() {
       )}
 
       {phase.name === "idle" && (
-        <label
-          onDragOver={(event) => {
-            event.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragging(false);
-            const file = event.dataTransfer.files[0];
-            if (file && ocrOnline !== false) upload(file);
-          }}
-          className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-16 text-center transition ${
-            dragging ? "border-accent bg-accent/5" : "border-line hover:border-ink-soft"
-          } ${ocrOnline === false ? "pointer-events-none opacity-40" : ""}`}
-        >
-          <span className="text-2xl text-amber/70" aria-hidden>✦</span>
-          <span className="text-sm font-medium">Drop a document here, or click to choose</span>
-          <span className="text-xs text-ink-soft">PDF · DOCX · PPTX, up to 50 pages</span>
-          <input
-            type="file"
-            accept=".pdf,.docx,.pptx"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) upload(file);
-              event.target.value = "";
-            }}
-          />
-        </label>
+        <Dropzone
+          hint="PDF · DOCX · PPTX, up to 50 pages"
+          disabled={ocrOnline === false}
+          onFile={uploadFile}
+        />
       )}
     </div>
   );

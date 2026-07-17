@@ -8,9 +8,10 @@ points to its source on the page.
 
 ## Status
 
-The first-run setup wizard and the live stack-status system are complete.
-The review pages (Try it, Library, Ingest, Playground, Settings) are being
-built slice by slice.
+The setup wizard, live stack status, Try it (in-memory pipeline runs with
+the page-by-page review shell), and Ingest (committed runs with live
+five-stage progress) are working. Library, Settings, and the retrieval
+playground are being built slice by slice.
 
 ## Requirements
 

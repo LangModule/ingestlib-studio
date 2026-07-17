@@ -7,7 +7,6 @@ re-uploading, because the studio still holds its file.
 """
 import asyncio
 import hashlib
-from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
@@ -16,15 +15,9 @@ from pydantic import BaseModel, Field
 
 from app import bootstrap
 from app.pipeline import ingest
-from app.pipeline.jobs import (
-    INGEST_JOBS,
-    SUPPORTED_SUFFIXES,
-    TRY_JOBS,
-    IngestBusy,
-    IngestJob,
-    JobStatus,
-)
+from app.pipeline.jobs import INGEST_JOBS, TRY_JOBS, IngestBusy, IngestJob, JobStatus
 from app.routes.sse import stage_events
+from app.routes.uploads import read_document
 
 router = APIRouter(
     prefix="/api/ingest", tags=["ingest"],
@@ -73,7 +66,7 @@ def _response(job: IngestJob, created: bool = False) -> IngestJobResponse:
     )
 
 
-def _start(content: bytes, filename: str) -> IngestJobResponse:
+def _start(filename: str, content: bytes) -> IngestJobResponse:
     job_id = hashlib.sha256(content).hexdigest()
     try:
         job, created = INGEST_JOBS.create_or_get(job_id, filename)
@@ -87,16 +80,8 @@ def _start(content: bytes, filename: str) -> IngestJobResponse:
 
 @router.post("", response_model=IngestJobResponse)
 async def start(file: UploadFile) -> IngestJobResponse:
-    filename = Path(file.filename or "upload").name
-    if not filename.lower().endswith(SUPPORTED_SUFFIXES):
-        raise HTTPException(
-            status_code=422,
-            detail=f"unsupported file type; expected one of {list(SUPPORTED_SUFFIXES)}",
-        )
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=422, detail="the uploaded file is empty")
-    return _start(content, filename)
+    filename, content = await read_document(file)
+    return _start(filename, content)
 
 
 @router.post("/from-try/{try_job_id}", response_model=IngestJobResponse)
@@ -110,7 +95,7 @@ async def start_from_try(try_job_id: str) -> IngestJobResponse:
         raise HTTPException(
             status_code=404, detail="the try job has expired; upload the file again"
         )
-    return _start(try_job.upload_path.read_bytes(), try_job.filename)
+    return _start(try_job.filename, try_job.upload_path.read_bytes())
 
 
 @router.get("/{job_id}", response_model=IngestJobResponse)
