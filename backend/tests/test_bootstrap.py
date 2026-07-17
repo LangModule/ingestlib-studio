@@ -1,6 +1,8 @@
 """Configuration resolution branches — pure, no network, no ingestlib."""
 import os
+import subprocess
 import sys
+from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -55,11 +57,23 @@ def test_gate_returns_409_while_unconfigured(scratch):
     assert response.json()["detail"]["configured"] is False
 
 
-def test_bootstrap_module_never_imports_ingestlib(scratch):
-    """Resolving configuration state must not import the library. In-process
-    activation only works if the library first loads its configuration after
-    the wizard has written the files."""
-    bootstrap.resolve()
-    assert not any(m == "ingestlib" or m.startswith("ingestlib.") for m in sys.modules), (
-        "bootstrap/resolve must not import ingestlib"
+def test_importing_the_app_never_imports_ingestlib():
+    """Building the app and resolving configuration state must not import the
+    library. In-process activation only works if the library first loads its
+    configuration after the wizard has written the files. Checked in a fresh
+    interpreter, because other tests import the library legitimately."""
+    code = (
+        "import sys; "
+        "from app.main import create_app; "
+        "from app import bootstrap; "
+        "create_app(); "
+        "bootstrap.resolve(); "
+        "assert not any(m == 'ingestlib' or m.startswith('ingestlib.') "
+        "for m in sys.modules), 'ingestlib was imported'"
     )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        cwd=Path(__file__).resolve().parents[1],
+    )
+    assert result.returncode == 0, result.stderr.decode()

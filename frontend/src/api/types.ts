@@ -25,3 +25,74 @@ export interface CompleteRequest {
   secrets: Record<string, string>;
   paddle_vl?: { backend: "mlx-vlm-server" | "vllm-server"; server_url: string };
 }
+
+export interface StageEvent {
+  stage: string;
+  event: "start" | "done" | "failed";
+  seconds: number | null;
+  detail: string | null;
+}
+
+export interface RegionView {
+  region_id: number;
+  region_type: string;
+  text: string;
+  content: string;
+  bbox: [number, number, number, number];
+}
+
+export interface PageView {
+  page_num: number;
+  width: number;
+  height: number;
+  image_url: string;
+  markdown: string;
+  text: string;
+  regions: RegionView[];
+}
+
+export interface ClassifyView {
+  category: string;
+  confidence: number;
+  reasoning: string;
+  alternatives: { label: string; score: number }[];
+  pages_used: number;
+}
+
+export interface SectionView {
+  name: string;
+  description: string;
+  pages: number[];
+  chunk_ids: number[];
+}
+
+export interface ChunkView {
+  chunk_id: number;
+  section: string;
+  heading: string;
+  kind: string;
+  token_estimate: number;
+  pages: number[];
+  region_ids: Record<number, number[]>;
+  markdown: string;
+  text: string;
+}
+
+export interface DocumentView {
+  filename: string;
+  page_count: number;
+  pages: PageView[];
+  classify: ClassifyView;
+  sections: SectionView[];
+  chunks: ChunkView[];
+}
+
+export interface TryJobResponse {
+  job_id: string;
+  filename: string;
+  status: "running" | "done" | "failed";
+  created: boolean;
+  error: string | null;
+  durations: Record<string, number>;
+  result: DocumentView | null;
+}

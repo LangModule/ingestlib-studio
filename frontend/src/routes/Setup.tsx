@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BrandArt } from "../components/BrandArt";
 import type { Reranker, VectorStore } from "../api/types";
 import { StepRail } from "../components/setup/StepRail";
 import { Step1Aws } from "../components/setup/Step1Aws";
@@ -77,6 +78,7 @@ export default function Setup() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
+      <BrandArt />
       <header className="mb-10 flex items-start justify-between">
         <div>
           <span className="wordmark text-2xl font-semibold text-ink">

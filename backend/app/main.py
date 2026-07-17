@@ -2,7 +2,7 @@
 
 Configures CORS for the Vite dev server, registers the API routers, and
 serves the built frontend when one exists. Later slices add the documents,
-try-it, ingest, and retrieve routers here, each guarded by
+ingest, and retrieve routers here, each guarded like the try router by
 bootstrap.require_configured.
 """
 from pathlib import Path
@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app import bootstrap
-from app.routes import setup
+from app.routes import setup, tryit
 
 _FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 
@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(setup.router)
+    app.include_router(tryit.router)
 
     # The directory exists only after a frontend build; `make serve` uses it.
     if _FRONTEND_DIST.is_dir():

@@ -21,3 +21,14 @@ def scratch(tmp_path, monkeypatch):
 @pytest.fixture()
 def client(scratch):
     return TestClient(create_app())
+
+
+@pytest.fixture()
+def configured_client(scratch):
+    """A client whose scratch directory holds a minimal valid configuration."""
+    directory = bootstrap.config_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "config.yaml").write_text(
+        'aws:\n  profile: p\n  region: us-east-1\n  account_id: "1"\n'
+    )
+    return TestClient(create_app())

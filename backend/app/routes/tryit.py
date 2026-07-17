@@ -1,0 +1,131 @@
+"""Endpoints for Try it: run the pipeline on an upload without storing anything.
+
+Uploads are hashed, so re-sending the same file joins the existing job. Page
+and figure images stream straight from the in-memory ParseResult; when the
+job is evicted or deleted, they are gone — by design.
+"""
+import asyncio
+import hashlib
+import json
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel
+
+from app import bootstrap
+from app.documents.schemas import DocumentView
+from app.documents.shaping import shape_document
+from app.pipeline import tryit
+from app.pipeline.jobs import JOBS, JobStatus, TryJob
+
+router = APIRouter(
+    prefix="/api/try", tags=["try"],
+    dependencies=[Depends(bootstrap.require_configured)],
+)
+
+
+class TryJobResponse(BaseModel):
+    job_id: str
+    filename: str
+    status: JobStatus
+    created: bool = False
+    error: str | None = None
+    durations: dict[str, float] = {}
+    result: DocumentView | None = None
+
+
+def _get_job(job_id: str) -> TryJob:
+    job = JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="no such try job (it may have expired)")
+    return job
+
+
+def _response(job: TryJob, created: bool = False) -> TryJobResponse:
+    result = None
+    if job.status == "done":
+        result = shape_document(
+            job.filename, job.parse_result, job.classify_result, job.split_result,
+            base_url=f"/api/try/{job.job_id}",
+        )
+    return TryJobResponse(
+        job_id=job.job_id, filename=job.filename, status=job.status,
+        created=created, error=job.error, durations=job.durations, result=result,
+    )
+
+
+@router.post("", response_model=TryJobResponse)
+async def start(file: UploadFile) -> TryJobResponse:
+    filename = Path(file.filename or "upload").name
+    if not filename.lower().endswith(tryit.SUPPORTED_SUFFIXES):
+        raise HTTPException(
+            status_code=422,
+            detail=f"unsupported file type; expected one of {list(tryit.SUPPORTED_SUFFIXES)}",
+        )
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=422, detail="the uploaded file is empty")
+
+    job_id = hashlib.sha256(content).hexdigest()
+    job, created = JOBS.create_or_get(job_id, filename)
+    if created:
+        job.upload_path.write_bytes(content)
+        job.task = asyncio.create_task(tryit.run(job))
+    return _response(job, created=created)
+
+
+@router.get("/{job_id}", response_model=TryJobResponse)
+def get(job_id: str) -> TryJobResponse:
+    return _response(_get_job(job_id))
+
+
+@router.get("/{job_id}/events")
+async def events(job_id: str) -> StreamingResponse:
+    job = _get_job(job_id)
+
+    async def stream():
+        async for event in job.stream():
+            yield f"data: {json.dumps(event.model_dump())}\n\n"
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/{job_id}/pages/{page_num}/image")
+def page_image(job_id: str, page_num: int) -> Response:
+    job = _get_job(job_id)
+    if job.parse_result is None:
+        raise HTTPException(status_code=409, detail="the parse stage has not finished yet")
+    try:
+        page = job.parse_result.page_by_num(page_num)
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if page.image_bytes is None:
+        raise HTTPException(status_code=404, detail=f"page {page_num} has no render")
+    return Response(content=page.image_bytes, media_type="image/png")
+
+
+@router.get("/{job_id}/pages/{page_num}/figures/{region_id}/image")
+def figure_image(job_id: str, page_num: int, region_id: int) -> Response:
+    job = _get_job(job_id)
+    if job.parse_result is None:
+        raise HTTPException(status_code=409, detail="the parse stage has not finished yet")
+    try:
+        page = job.parse_result.page_by_num(page_num)
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    for figure in page.figures:
+        if figure.region_id == region_id and figure.image_bytes:
+            return Response(content=figure.image_bytes, media_type="image/png")
+    raise HTTPException(status_code=404, detail=f"no figure {region_id} on page {page_num}")
+
+
+@router.delete("/{job_id}")
+def delete(job_id: str) -> dict[str, bool]:
+    if not JOBS.delete(job_id):
+        raise HTTPException(status_code=404, detail="no such try job")
+    return {"deleted": True}

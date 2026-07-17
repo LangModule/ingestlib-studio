@@ -6,6 +6,7 @@ import { StatusPopover } from "./components/StatusPopover";
 import type { SetupStatus } from "./api/types";
 import Library from "./routes/Library";
 import Setup from "./routes/Setup";
+import TryIt from "./routes/TryIt";
 
 const NAV = [
   { to: "/", label: "Library" },
@@ -50,6 +51,7 @@ function Shell({ status, children }: { status: SetupStatus; children: React.Reac
 function Placeholder({ title }: { title: string }) {
   return (
     <div className="mx-auto max-w-6xl px-6 py-16 text-center">
+      <BrandArt />
       <h1 className="text-lg font-semibold">{title}</h1>
       <p className="mt-2 text-sm text-ink-soft">Coming in a later slice.</p>
     </div>
@@ -82,7 +84,6 @@ export default function App() {
   if (!status.configured) {
     return (
       <BrowserRouter>
-        <BrandArt />
         <Routes>
           <Route path="/setup" element={<Setup />} />
           <Route path="*" element={<Navigate to="/setup" replace />} />
@@ -93,11 +94,10 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <BrandArt />
       <Shell status={status}>
         <Routes>
           <Route path="/" element={<Library />} />
-          <Route path="/try" element={<Placeholder title="Try it" />} />
+          <Route path="/try" element={<TryIt />} />
           <Route path="/ingest" element={<Placeholder title="Ingest" />} />
           <Route path="/playground" element={<Placeholder title="Playground" />} />
           <Route path="/settings" element={<Placeholder title="Settings" />} />

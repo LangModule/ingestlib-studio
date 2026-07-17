@@ -1,0 +1,83 @@
+"""Runs the try pipeline: parse, classify, split, entirely in memory.
+
+Deliberately composed from the standalone operations instead of ingest():
+a try run must never write to S3 or the vector store. The results stay on
+the job so the routes can serve page images and shaped views from memory.
+
+ingestlib is imported inside run(), not at module level, so importing the
+studio's routes keeps the process free of the library until a configured
+user actually starts a run.
+"""
+import time
+
+from app.pipeline.jobs import TryJob
+
+# A ParseResult with page renders for a large document is heavy, and OCR time
+# grows linearly; beyond this cap the honest answer is "use Ingest".
+PAGE_CAP = 50
+
+SUPPORTED_SUFFIXES = (".pdf", ".docx", ".pptx")
+
+
+def count_pdf_pages(path) -> int | None:
+    """Page count for PDFs, None for office files.
+
+    Office files would need a LibreOffice conversion just to count, so their
+    cap is enforced after parsing instead."""
+    if path.suffix.lower() != ".pdf":
+        return None
+    import pypdfium2 as pdfium
+
+    document = pdfium.PdfDocument(str(path))
+    try:
+        return len(document)
+    finally:
+        document.close()
+
+
+async def run(job: TryJob) -> None:
+    """Execute the three stages, emitting start/done/failed events with
+    durations. Any failure marks the job failed with the stage's error."""
+    from ingestlib.operations import aclassify, aparse, asplit
+
+    stage = "parse"
+    try:
+        pages = count_pdf_pages(job.upload_path)
+        if pages is not None and pages > PAGE_CAP:
+            raise ValueError(
+                f"{pages} pages is over the try limit of {PAGE_CAP}; "
+                f"use Ingest for big documents"
+            )
+
+        await job.emit(stage, "start")
+        started = time.perf_counter()
+        job.parse_result = await aparse(job.upload_path)
+        job.durations[stage] = round(time.perf_counter() - started, 2)
+        if job.parse_result.page_count > PAGE_CAP:
+            raise ValueError(
+                f"{job.parse_result.page_count} pages is over the try limit of "
+                f"{PAGE_CAP}; use Ingest for big documents"
+            )
+        await job.emit(stage, "done", seconds=job.durations[stage])
+
+        stage = "classify"
+        await job.emit(stage, "start")
+        started = time.perf_counter()
+        job.classify_result = await aclassify(job.parse_result)
+        job.durations[stage] = round(time.perf_counter() - started, 2)
+        await job.emit(stage, "done", seconds=job.durations[stage])
+
+        stage = "split"
+        await job.emit(stage, "start")
+        started = time.perf_counter()
+        job.split_result = await asplit(
+            job.parse_result, category=job.classify_result.category
+        )
+        job.durations[stage] = round(time.perf_counter() - started, 2)
+        await job.emit(stage, "done", seconds=job.durations[stage])
+
+        await job.finish("done")
+    except Exception as exc:  # noqa: BLE001
+        detail = f"{type(exc).__name__}: {exc}" if not isinstance(exc, ValueError) else str(exc)
+        await job.emit(stage, "failed", detail=detail)
+        await job.finish("failed", error=detail)

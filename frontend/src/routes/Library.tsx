@@ -1,6 +1,9 @@
+import { BrandArt } from "../components/BrandArt";
+
 export default function Library() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-24">
+      <BrandArt />
       <div className="mx-auto max-w-md text-center">
         <p className="text-2xl text-amber/70" aria-hidden>
           ✦

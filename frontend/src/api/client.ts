@@ -1,4 +1,11 @@
-import type { CheckResult, CompleteRequest, Reranker, SetupStatus, VectorStore } from "./types";
+import type {
+  CheckResult,
+  CompleteRequest,
+  Reranker,
+  SetupStatus,
+  TryJobResponse,
+  VectorStore,
+} from "./types";
 
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(path);
@@ -52,4 +59,22 @@ export const api = {
   checkLibreOffice: () => get<CheckResult>("/api/setup/check/libreoffice"),
   health: () => get<Record<string, CheckResult>>("/api/setup/health"),
   complete: (body: CompleteRequest) => post<SetupStatus>("/api/setup/complete", body),
+
+  tryStart: async (file: File): Promise<TryJobResponse> => {
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch("/api/try", { method: "POST", body: form });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      const detail = payload?.detail;
+      throw new Error(
+        typeof detail === "string" ? detail : `upload failed with ${response.status}`,
+      );
+    }
+    return response.json();
+  },
+  tryGet: (jobId: string) => get<TryJobResponse>(`/api/try/${jobId}`),
+  tryEventsUrl: (jobId: string) => `/api/try/${jobId}/events`,
+  tryDelete: (jobId: string) =>
+    fetch(`/api/try/${jobId}`, { method: "DELETE" }).then(() => undefined),
 };
