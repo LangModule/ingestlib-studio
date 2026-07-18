@@ -29,8 +29,8 @@ export function Step3Permissions({
   const [running, setRunning] = useState(false);
 
   useEffect(() => {
-    api.iamPolicy(state.accountId, state.bucket, state.reranker).then(setPolicy);
-  }, [state.accountId, state.bucket, state.reranker]);
+    api.iamPolicy(state.accountId, state.bucket, state.reranker, state.store).then(setPolicy);
+  }, [state.accountId, state.bucket, state.reranker, state.store]);
 
   const copy = () => {
     navigator.clipboard.writeText(JSON.stringify(policy, null, 2));
@@ -45,7 +45,7 @@ export function Step3Permissions({
     const probes: [string, () => Promise<CheckResult>][] = [
       [ROWS[0], () => api.checkBedrock(state.profile, state.region)],
       [ROWS[1], () => api.checkS3(state.profile, state.region, state.bucket)],
-      [ROWS[2], () => api.checkVectorDb(state.store, state.secrets)],
+      [ROWS[2], () => api.checkVectorDb(state.store, state.secrets, state.profile, state.region)],
       [ROWS[3], () =>
         api.checkReranker(
           state.reranker,
@@ -89,6 +89,7 @@ export function Step3Permissions({
           <span className="text-sm font-semibold">
             IAM policy, pre-filled for account {state.accountId} and bucket {state.bucket}
             {state.reranker === "aws" && ", including Amazon Rerank"}
+            {state.store === "opensearch" && ", including OpenSearch domain deploy"}
           </span>
           <Button kind="ghost" onClick={copy}>{copied ? "Copied ✓" : "Copy JSON"}</Button>
         </div>

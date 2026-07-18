@@ -4,7 +4,10 @@ These are the only routes available before the studio is configured. The
 handlers delegate to the app.setup package, which talks to AWS and the other
 services directly rather than through ingestlib.
 """
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from app import bootstrap
 from app.setup import checks, policy, runtime, writer
@@ -50,7 +53,9 @@ def health() -> dict[str, CheckResult]:
     return {
         "bedrock": checks.check_bedrock(config.profile, config.region),
         "s3": checks.check_s3(config.profile, config.region, config.bucket),
-        "vectordb": checks.check_vectordb(config.vector_store, config.secrets),
+        "vectordb": checks.check_vectordb(
+            config.vector_store, config.secrets, config.profile, config.region,
+        ),
         "reranker": checks.check_reranker(
             config.reranker, config.secrets.get("JINA_API_KEY", ""),
             config.profile, config.region,
@@ -71,10 +76,29 @@ def check_aws(body: AwsCheckRequest) -> CheckResult:
 
 
 @router.get("/iam-policy")
-def iam_policy(account_id: str, bucket: str, reranker: str = "jina") -> dict:
+def iam_policy(
+    account_id: str, bucket: str, reranker: str = "jina", vector_store: str = ""
+) -> dict:
     if reranker not in ("jina", "aws", "none"):
         raise HTTPException(status_code=422, detail=f"unknown reranker {reranker!r}")
-    return policy.build_iam_policy(account_id, bucket, reranker)
+    return policy.build_iam_policy(account_id, bucket, reranker, vector_store)
+
+
+_OPENSEARCH_TEMPLATE = Path(__file__).parent.parent / "setup" / "opensearch-domain.yaml"
+
+
+@router.get("/opensearch-template")
+def opensearch_template(master_user_arn: str = "") -> Response:
+    """The CloudFormation template for the cheapest k-NN-capable domain,
+    with the caller's identity pre-filled as the domain's master user."""
+    text = _OPENSEARCH_TEMPLATE.read_text()
+    if master_user_arn:
+        text = text.replace("REPLACE_WITH_YOUR_IAM_ARN", master_user_arn)
+    return Response(
+        content=text,
+        media_type="application/x-yaml",
+        headers={"Content-Disposition": 'attachment; filename="ingestlib-opensearch.yaml"'},
+    )
 
 
 @router.post("/check/bedrock", response_model=CheckResult)
@@ -89,7 +113,7 @@ def check_s3(body: S3CheckRequest) -> CheckResult:
 
 @router.post("/check/vectordb", response_model=CheckResult)
 def check_vectordb(body: VectorDbCheckRequest) -> CheckResult:
-    return checks.check_vectordb(body.store, body.secrets)
+    return checks.check_vectordb(body.store, body.secrets, body.profile, body.region)
 
 
 @router.post("/check/reranker", response_model=CheckResult)

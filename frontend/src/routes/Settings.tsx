@@ -12,6 +12,7 @@ import type {
 } from "../api/types";
 import { StackChecklist } from "../components/StackChecklist";
 import { StageStepper } from "../components/pipeline/StageStepper";
+import { OpensearchDeployHint } from "../components/setup/OpensearchDeployHint";
 import { ChoiceCard, RERANKERS, STORES } from "../components/setup/Step2Choices";
 import { Button, Card, Field, Select, TextInput } from "../components/setup/ui";
 
@@ -49,6 +50,9 @@ export default function Settings() {
   const [backfill, setBackfill] = useState<BackfillStatus | null>(null);
   const [backfillPhase, setBackfillPhase] = useState<BackfillPhase>({ name: "idle" });
   const source = useRef<EventSource | null>(null);
+  // The deploy hint pre-fills the template with the caller's IAM identity,
+  // which the settings view does not carry; fetch it once when needed.
+  const [arn, setArn] = useState("");
 
   const load = async () => {
     const fresh = await api.settingsGet();
@@ -71,6 +75,14 @@ export default function Settings() {
     load().catch((exc) => setError(exc instanceof Error ? exc.message : String(exc)));
     return () => source.current?.close();
   }, []);
+
+  useEffect(() => {
+    if (!view || !form || form.store !== "opensearch" || arn) return;
+    api
+      .checkAws(view.profile, view.region)
+      .then((result) => setArn(String(result.data.arn ?? "")))
+      .catch(() => undefined);
+  }, [view, form, arn]);
 
   const setSecret = (key: string, value: string) =>
     setForm((prev) => prev && { ...prev, secrets: { ...prev.secrets, [key]: value } });
@@ -244,6 +256,9 @@ export default function Settings() {
                   <p className="text-xs text-ink-soft">
                     No server yet? <code className="mono">{selectedStore.dockerHint}</code>
                   </p>
+                )}
+                {form.store === "opensearch" && (
+                  <OpensearchDeployHint arn={arn} profile={view.profile} region={view.region} />
                 )}
               </Card>
             )}

@@ -1,5 +1,6 @@
 import type { Reranker, VectorStore } from "../../api/types";
 import type { Patch, WizardState } from "../../routes/Setup";
+import { OpensearchDeployHint } from "./OpensearchDeployHint";
 import { Button, Card, Field, TextInput } from "./ui";
 
 export interface SecretField {
@@ -87,6 +88,38 @@ export const STORES: StoreOption[] = [
       },
     ],
     dockerHint: "docker run -p 19530:19530 milvusdb/milvus",
+  },
+  {
+    id: "opensearch",
+    title: "OpenSearch",
+    blurb: "Amazon OpenSearch on your AWS account. Requests sign with the same profile, no new key.",
+    secretFields: [
+      {
+        // Optional at this step: a fresh user deploys the domain with the
+        // next step's IAM policy first, then returns to paste the endpoint.
+        key: "OPENSEARCH_URL",
+        label: "Domain endpoint URL, empty until your domain exists",
+        placeholder: "https://search-your-domain.us-east-1.es.amazonaws.com",
+        optional: true,
+      },
+    ],
+  },
+  {
+    id: "weaviate",
+    title: "Weaviate",
+    blurb: "Native hybrid search fused in one call. Local docker or Weaviate Cloud.",
+    secretFields: [
+      { key: "WEAVIATE_URL", label: "URL", placeholder: "http://localhost:8080" },
+      {
+        key: "WEAVIATE_API_KEY",
+        label: "API key, empty for a local server",
+        placeholder: "",
+        password: true,
+        optional: true,
+      },
+    ],
+    dockerHint: "docker run -p 8080:8080 -p 50051:50051 "
+      + "-e AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true cr.weaviate.io/semitechnologies/weaviate",
   },
 ];
 
@@ -210,6 +243,13 @@ export function Step2Choices({
               <p className="text-xs text-ink-soft">
                 No server yet? <code className="mono">{store.dockerHint}</code>
               </p>
+            )}
+            {state.store === "opensearch" && (
+              <OpensearchDeployHint
+                arn={state.arn}
+                profile={state.profile}
+                region={state.region}
+              />
             )}
           </Card>
         )}

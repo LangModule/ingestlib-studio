@@ -25,7 +25,7 @@ app/
 │                     configuration lives. Provides require_configured, the
 │                     HTTP 409 gate on every router except setup.
 ├── setup/            The wizard and the health checks. Never imports ingestlib.
-│   ├── checks.py     Real-call probes: STS, Bedrock, S3, the six vector
+│   ├── checks.py     Real-call probes: STS, Bedrock, S3, the eight vector
 │   │                 stores, the rerankers, the OCR server, LibreOffice.
 │   ├── policy.py     Builds the least-privilege IAM policy, pre-filled.
 │   ├── writer.py     Writes config.yaml (answers only) and .env (mode 600).

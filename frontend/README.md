@@ -46,8 +46,9 @@ src/
 │   │                         pictures where the vector store has none.
 │   └── setup/            The wizard steps and the shared primitives
 │                         (Button, Card, Field, inputs, useCheck).
-│                         Step2Choices also exports the store and reranker
-│                         cards that Settings reuses.
+│                         Step2Choices exports the store and reranker cards,
+│                         and OpensearchDeployHint carries the domain deploy
+│                         story; Settings reuses both.
 └── routes/               One file per page: Setup, Library,
                           DocumentReview, TryIt, Ingest, Playground,
                           Settings.

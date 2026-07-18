@@ -58,17 +58,23 @@ export const api = {
   awsProfiles: () => get<{ profiles: string[] }>("/api/setup/aws-profiles"),
   checkAws: (profile: string, region: string) =>
     post<CheckResult>("/api/setup/check/aws", { profile, region }),
-  iamPolicy: (accountId: string, bucket: string, reranker: Reranker) =>
+  iamPolicy: (accountId: string, bucket: string, reranker: Reranker, store: VectorStore) =>
     get<object>(
       `/api/setup/iam-policy?account_id=${encodeURIComponent(accountId)}` +
-        `&bucket=${encodeURIComponent(bucket)}&reranker=${reranker}`,
+        `&bucket=${encodeURIComponent(bucket)}&reranker=${reranker}&vector_store=${store}`,
     ),
+  opensearchTemplateUrl: (masterUserArn: string) =>
+    `/api/setup/opensearch-template?master_user_arn=${encodeURIComponent(masterUserArn)}`,
   checkBedrock: (profile: string, region: string) =>
     post<CheckResult>("/api/setup/check/bedrock", { profile, region }),
   checkS3: (profile: string, region: string, bucket: string) =>
     post<CheckResult>("/api/setup/check/s3", { profile, region, bucket }),
-  checkVectorDb: (store: VectorStore, secrets: Record<string, string>) =>
-    post<CheckResult>("/api/setup/check/vectordb", { store, secrets }),
+  checkVectorDb: (
+    store: VectorStore,
+    secrets: Record<string, string>,
+    profile: string,
+    region: string,
+  ) => post<CheckResult>("/api/setup/check/vectordb", { store, secrets, profile, region }),
   checkReranker: (reranker: Reranker, apiKey: string, profile: string, region: string) =>
     post<CheckResult>("/api/setup/check/reranker", {
       reranker,

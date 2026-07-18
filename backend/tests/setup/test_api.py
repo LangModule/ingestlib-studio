@@ -40,6 +40,29 @@ def test_iam_policy_appends_rerank_for_aws():
     assert rerank["Resource"] == "*"  # bedrock:Rerank has no resource-level scoping
 
 
+def test_iam_policy_appends_opensearch_deploy_statements():
+    built = build_iam_policy("123456789012", "b", reranker="jina", vector_store="opensearch")
+    sids = [s["Sid"] for s in built["Statement"]]
+    assert sids[-3:] == [
+        "IngestlibOpensearchStack",
+        "IngestlibOpensearchTemplateOps",
+        "IngestlibOpensearchDomain",
+    ]
+    dumped = json.dumps(built)
+    assert "stack/ingestlib-opensearch" in dumped and "domain/ingestlib*" in dumped
+
+
+def test_opensearch_template_prefills_the_master_user(client):
+    response = client.get(
+        "/api/setup/opensearch-template",
+        params={"master_user_arn": "arn:aws:iam::123456789012:user/me"},
+    )
+    assert response.status_code == 200
+    assert "AWS::OpenSearchService::Domain" in response.text
+    assert "arn:aws:iam::123456789012:user/me" in response.text
+    assert "REPLACE_WITH_YOUR_IAM_ARN" not in response.text
+
+
 def test_iam_policy_rejects_unknown_reranker(client):
     response = client.get(
         "/api/setup/iam-policy",
@@ -64,6 +87,18 @@ def test_check_ocr_dead_port_fails_honestly(client):
 def test_check_vectordb_sqlite_needs_nothing(client):
     body = client.post("/api/setup/check/vectordb", json={"store": "sqlite"}).json()
     assert body["ok"] is True
+
+
+def test_check_vectordb_opensearch_requires_url(client):
+    body = client.post("/api/setup/check/vectordb", json={"store": "opensearch"}).json()
+    assert body["ok"] is False and "OPENSEARCH_URL" in body["detail"]
+
+
+def test_check_vectordb_weaviate_dead_port_fails_honestly(client):
+    body = client.post("/api/setup/check/vectordb", json={
+        "store": "weaviate", "secrets": {"WEAVIATE_URL": "http://127.0.0.1:59998"},
+    }).json()
+    assert body["ok"] is False
 
 
 def test_check_reranker_none_is_ok(client):

@@ -3,7 +3,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-VectorStore = Literal["sqlite", "pinecone", "qdrant", "pgvector", "mongodb", "milvus"]
+VectorStore = Literal[
+    "sqlite", "pinecone", "qdrant", "pgvector", "mongodb", "milvus",
+    "opensearch", "weaviate",
+]
 Reranker = Literal["jina", "aws", "none"]
 
 # The only keys the wizard may write to .env. Anything else is rejected.
@@ -16,6 +19,9 @@ ALLOWED_SECRET_KEYS = (
     "MONGODB_URL",
     "MILVUS_URL",
     "MILVUS_TOKEN",
+    "OPENSEARCH_URL",
+    "WEAVIATE_URL",
+    "WEAVIATE_API_KEY",
 )
 
 
@@ -59,6 +65,8 @@ class S3CheckRequest(BaseModel):
 class VectorDbCheckRequest(BaseModel):
     store: VectorStore
     secrets: dict[str, str] = Field(default_factory=dict)
+    profile: str = ""           # used when the store is an Amazon OpenSearch domain
+    region: str = "us-east-1"
 
 
 class RerankerCheckRequest(BaseModel):

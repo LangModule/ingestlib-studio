@@ -9,7 +9,9 @@ from app.setup.defaults import (
 )
 
 
-def build_iam_policy(account_id: str, bucket: str, reranker: str) -> dict[str, Any]:
+def build_iam_policy(
+    account_id: str, bucket: str, reranker: str, vector_store: str = ""
+) -> dict[str, Any]:
     """Return the least-privilege policy for the given answers.
 
     The Nova model id is a cross-region inference profile, so the policy
@@ -55,5 +57,28 @@ def build_iam_policy(account_id: str, bucket: str, reranker: str) -> dict[str, A
             "Resource": (
                 f"arn:aws:bedrock:{AWS_RERANK_REGION}::foundation-model/{AWS_RERANK_MODEL_ID}"
             ),
+        })
+    if vector_store == "opensearch":
+        # A domain with fine-grained access control authorizes signed
+        # requests by itself, so the pipeline needs no identity statements
+        # to USE it. These let the same user CREATE and manage the domain
+        # with the CloudFormation template the wizard offers.
+        statements.append({
+            "Sid": "IngestlibOpensearchStack",
+            "Effect": "Allow",
+            "Action": "cloudformation:*",
+            "Resource": f"arn:aws:cloudformation:*:{account_id}:stack/ingestlib-opensearch/*",
+        })
+        statements.append({
+            "Sid": "IngestlibOpensearchTemplateOps",
+            "Effect": "Allow",
+            "Action": ["cloudformation:ValidateTemplate", "cloudformation:GetTemplateSummary"],
+            "Resource": "*",
+        })
+        statements.append({
+            "Sid": "IngestlibOpensearchDomain",
+            "Effect": "Allow",
+            "Action": "es:*",
+            "Resource": f"arn:aws:es:*:{account_id}:domain/ingestlib*",
         })
     return {"Version": "2012-10-17", "Statement": statements}

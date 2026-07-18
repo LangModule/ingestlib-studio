@@ -1,0 +1,94 @@
+# The cheapest k-NN-capable Amazon OpenSearch domain for ingestlib.
+# One r8g.medium.search data node, 1-AZ, no standby, no dedicated masters,
+# 10 GiB gp3, public endpoint with fine-grained access control mapped to
+# your IAM identity. Roughly $0.10 per hour while it exists.
+#
+# Create (~15 min to Active):
+#   aws cloudformation deploy \
+#     --template-file ingestlib-opensearch.yaml \
+#     --stack-name ingestlib-opensearch \
+#     --profile YOUR_PROFILE --region YOUR_REGION
+#
+# Endpoint (goes into OPENSEARCH_URL):
+#   aws cloudformation describe-stacks \
+#     --stack-name ingestlib-opensearch \
+#     --query "Stacks[0].Outputs[?OutputKey=='DomainEndpoint'].OutputValue" \
+#     --output text --profile YOUR_PROFILE --region YOUR_REGION
+#
+# Remove (billing ends; backfill rebuilds the index from S3 anytime):
+#   aws cloudformation delete-stack \
+#     --stack-name ingestlib-opensearch \
+#     --profile YOUR_PROFILE --region YOUR_REGION
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Single-node OpenSearch domain for ingestlib. Delete the stack when idle;
+  recreate it with the same command when you resume.
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: ingestlib
+  EngineVersion:
+    Type: String
+    Default: OpenSearch_3.5
+  InstanceType:
+    Type: String
+    Default: r8g.medium.search
+  MasterUserArn:
+    Type: String
+    Default: REPLACE_WITH_YOUR_IAM_ARN
+    Description: IAM principal that fine-grained access control treats as master.
+
+Resources:
+  Domain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: !Ref DomainName
+      EngineVersion: !Ref EngineVersion
+      IPAddressType: ipv4
+      ClusterConfig:
+        InstanceType: !Ref InstanceType
+        InstanceCount: 1
+        DedicatedMasterEnabled: false
+        ZoneAwarenessEnabled: false
+        MultiAZWithStandbyEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp3
+        VolumeSize: 10
+        Iops: 3000
+        Throughput: 125
+      # Public endpoint; authorization is entirely fine-grained access control,
+      # which rejects every request not signed by a mapped principal.
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "*"
+            Action: "es:*"
+            Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${DomainName}/*"
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: false
+        MasterUserOptions:
+          MasterUserARN: !Ref MasterUserArn
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      EncryptionAtRestOptions:
+        Enabled: true
+      SoftwareUpdateOptions:
+        AutoSoftwareUpdateEnabled: false
+      Tags:
+        - Key: project
+          Value: ingestlib
+
+Outputs:
+  DomainEndpoint:
+    Description: HTTPS endpoint for OPENSEARCH_URL.
+    Value: !Sub "https://${Domain.DomainEndpoint}"
+  DomainArn:
+    Value: !GetAtt Domain.Arn

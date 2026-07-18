@@ -7,12 +7,16 @@ instead of raising; every failure becomes a guidance card in the UI rather
 than an HTTP 500.
 """
 import configparser
+import re
 import shutil
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import boto3
 import httpx
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError, ProfileNotFound
 
@@ -150,11 +154,14 @@ def check_s3(profile: str, region: str, bucket: str) -> CheckResult:
         return _classify_aws_error(exc)
 
 
-def check_vectordb(store: str, secrets: dict[str, str]) -> CheckResult:
+def check_vectordb(
+    store: str, secrets: dict[str, str], profile: str = "", region: str = "us-east-1"
+) -> CheckResult:
     """Check that the selected vector store is reachable.
 
     Client libraries are imported inside each branch so that only the
-    selected backend is ever loaded."""
+    selected backend is ever loaded. The profile and region serve the
+    opensearch store, whose Amazon domains take SigV4-signed requests."""
     try:
         if store == "sqlite":
             return CheckResult(ok=True, detail="local file; nothing to reach, no keys")
@@ -226,6 +233,50 @@ def check_vectordb(store: str, secrets: dict[str, str]) -> CheckResult:
                 else "collection created on first ingest"
             )
             return CheckResult(ok=True, detail=f"reachable · {found}")
+
+        if store == "opensearch":
+            url = secrets.get("OPENSEARCH_URL", "").rstrip("/")
+            if not url:
+                return CheckResult(ok=False, kind="error", detail="OPENSEARCH_URL is required")
+            host = urlparse(url).hostname or ""
+            aws_match = re.search(r"\.([a-z0-9-]+)\.(es|aoss)\.amazonaws\.com$", host)
+            headers = {}
+            if aws_match:
+                aws_region, service = aws_match.groups()
+                credentials = boto3.Session(
+                    profile_name=profile or None, region_name=aws_region
+                ).get_credentials()
+                if credentials is None:
+                    return CheckResult(
+                        ok=False, kind="credentials",
+                        detail=f"no AWS credentials for profile {profile!r}",
+                    )
+                request = AWSRequest(method="GET", url=f"{url}/", headers={"host": host})
+                SigV4Auth(credentials, service, aws_region).add_auth(request)
+                headers = dict(request.headers)
+            try:
+                response = httpx.get(f"{url}/", headers=headers, timeout=10.0)
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (401, 403):
+                    return CheckResult(
+                        ok=False, kind="access-denied",
+                        detail="the domain rejected the signed request — check the "
+                               "fine-grained access control master user",
+                    )
+                raise
+            version = response.json().get("version", {}).get("number", "?")
+            return CheckResult(ok=True, detail=f"reachable · OpenSearch {version}")
+
+        if store == "weaviate":
+            url = secrets.get("WEAVIATE_URL", "http://localhost:8080").rstrip("/")
+            headers = {}
+            if secrets.get("WEAVIATE_API_KEY"):
+                headers["Authorization"] = f"Bearer {secrets['WEAVIATE_API_KEY']}"
+            response = httpx.get(f"{url}/v1/meta", headers=headers, timeout=5.0)
+            response.raise_for_status()
+            version = response.json().get("version", "?")
+            return CheckResult(ok=True, detail=f"reachable · Weaviate {version}")
 
         return CheckResult(ok=False, kind="error", detail=f"unknown store {store!r}")
     except Exception as exc:  # noqa: BLE001

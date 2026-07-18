@@ -1,4 +1,12 @@
-export type VectorStore = "sqlite" | "pinecone" | "qdrant" | "pgvector" | "mongodb" | "milvus";
+export type VectorStore =
+  | "sqlite"
+  | "pinecone"
+  | "qdrant"
+  | "pgvector"
+  | "mongodb"
+  | "milvus"
+  | "opensearch"
+  | "weaviate";
 export type Reranker = "jina" | "aws" | "none";
 
 export type FailureKind = "ok" | "credentials" | "access-denied" | "model-access" | "error";
