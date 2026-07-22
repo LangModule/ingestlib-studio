@@ -1,9 +1,11 @@
-"""Adapter over the library's S3 artifact registry, with a small cache.
+"""Adapter over the library's artifact registry, with a small cache.
 
-Loading a document costs three S3 reads plus shaping, so shaped views are
-kept in a bounded LRU keyed by doc_id; artifacts are immutable for a given
-doc_id, which is what makes the cache safe. Page and figure images never
-pass through this process: the routes redirect to presigned S3 URLs.
+Loading a document costs three artifact reads plus shaping, so shaped views
+are kept in a bounded LRU keyed by doc_id; artifacts are immutable for a
+given doc_id, which is what makes the cache safe. Page and figure images
+follow the artifact backend: on S3 the routes redirect to presigned URLs so
+image bytes never pass through this process; on a local artifact store the
+routes stream the files directly.
 
 ingestlib is imported inside each function, not at module level, so
 importing the studio's routes keeps the process free of the library until
@@ -20,6 +22,10 @@ from app.documents.shaping import shape_document
 CACHE_SIZE = 8
 PRESIGN_SECONDS = 15 * 60
 
+# (url, bytes): exactly one side is set — a redirect target on S3, raw PNG
+# bytes on a local artifact store.
+ImagePayload = tuple[str, None] | tuple[None, bytes]
+
 # doc_id -> (shaped view, {(page_num, region_id): figure filename})
 _cache: OrderedDict[str, tuple[DocumentView, dict[tuple[int, int], str]]] = OrderedDict()
 # doc_id -> filename, for hit cards; one meta read per document, evicted on delete.
@@ -28,8 +34,20 @@ _filenames: dict[str, str] = {}
 _lock = threading.Lock()
 
 
-def _is_missing(err: ClientError) -> bool:
-    return err.response.get("Error", {}).get("Code") in ("NoSuchKey", "404")
+def _is_missing(err: Exception) -> bool:
+    """Missing-artifact detection for both backends: S3 raises ClientError,
+    the local artifact store raises FileNotFoundError."""
+    if isinstance(err, FileNotFoundError):
+        return True
+    if isinstance(err, ClientError):
+        return err.response.get("Error", {}).get("Code") in ("NoSuchKey", "404")
+    return False
+
+
+def _local_artifacts() -> bool:
+    from ingestlib.config import get_config
+
+    return get_config().artifact_store == "local"
 
 
 def list_summaries() -> list[DocumentSummary]:
@@ -70,7 +88,7 @@ def load_view(doc_id: str) -> tuple[DocumentView, dict[tuple[int, int], str]]:
         parse = artifacts.load_parse(doc_id)
         classify = artifacts.load_classify(doc_id)
         split = artifacts.load_split(doc_id)
-    except ClientError as err:
+    except (ClientError, FileNotFoundError) as err:
         if _is_missing(err):
             raise LookupError(f"no document {doc_id[:12]} in the library") from err
         raise
@@ -101,10 +119,26 @@ def _presign(key: str) -> str:
     )
 
 
-def page_image_url(doc_id: str, page_num: int) -> str:
+def _image_payload(key: str) -> ImagePayload:
+    """A redirect URL (S3) or the raw bytes (local) for one image artifact.
+
+    Raises LookupError when a local artifact does not exist; on S3 a missing
+    key surfaces as the presigned URL 404ing in the browser, same as before.
+    """
     from ingestlib.storage import artifacts
 
-    return _presign(artifacts.page_image_key(doc_id, page_num))
+    if not _local_artifacts():
+        return _presign(key), None
+    try:
+        return None, artifacts.read_blob(key)
+    except FileNotFoundError as err:
+        raise LookupError(f"no artifact at {key}") from err
+
+
+def page_image(doc_id: str, page_num: int) -> ImagePayload:
+    from ingestlib.storage import artifacts
+
+    return _image_payload(artifacts.page_image_key(doc_id, page_num))
 
 
 def document_filename(doc_id: str) -> str:
@@ -122,8 +156,8 @@ def document_filename(doc_id: str) -> str:
     return filename
 
 
-def figure_image_url(doc_id: str, page_num: int, region_id: int) -> str | None:
-    """Presigned URL for one figure crop, or None when no such figure exists.
+def figure_image(doc_id: str, page_num: int, region_id: int) -> ImagePayload | None:
+    """Payload for one figure crop, or None when no such figure exists.
 
     The figures prefix mirrors the layout documented in
     ingestlib.storage.artifacts; the filename itself comes from the model's
@@ -132,7 +166,7 @@ def figure_image_url(doc_id: str, page_num: int, region_id: int) -> str | None:
     filename = figure_files.get((page_num, region_id))
     if filename is None:
         return None
-    return _presign(f"documents/{doc_id}/parse/figures/{filename}")
+    return _image_payload(f"documents/{doc_id}/parse/figures/{filename}")
 
 
 def clear_caches() -> None:
@@ -147,7 +181,7 @@ def clear_caches() -> None:
 
 
 def delete(doc_id: str) -> dict[str, int]:
-    """Remove the document everywhere: vector store first, then S3.
+    """Remove the document everywhere: vector store first, then artifacts.
 
     Vectors go first because the ingest manifest is the only record of
     them; deleting the artifacts first could orphan vectors forever. A
@@ -161,7 +195,7 @@ def delete(doc_id: str) -> dict[str, int]:
         vectors = default_store().delete_document(
             doc_id, namespace=manifest.get("namespace", "")
         )
-    except ClientError as err:
+    except (ClientError, FileNotFoundError) as err:
         if not _is_missing(err):
             raise
 

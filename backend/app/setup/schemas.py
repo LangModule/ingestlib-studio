@@ -8,10 +8,12 @@ VectorStore = Literal[
     "opensearch", "weaviate",
 ]
 Reranker = Literal["jina", "aws", "none"]
+ArtifactStore = Literal["s3", "local"]
 
 # The only keys the wizard may write to .env. Anything else is rejected.
 ALLOWED_SECRET_KEYS = (
     "JINA_API_KEY",
+    "OPENAI_API_KEY",
     "PINECONE_API_KEY",
     "QDRANT_URL",
     "QDRANT_API_KEY",
@@ -101,5 +103,6 @@ class CompleteRequest(BaseModel):
     bucket: str
     vector_store: VectorStore
     reranker: Reranker
+    artifact_store: ArtifactStore = "s3"
     secrets: dict[str, str] = Field(default_factory=dict)
     paddle_vl: PaddleAnswers | None = None

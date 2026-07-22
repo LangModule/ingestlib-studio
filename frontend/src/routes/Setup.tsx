@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { BrandArt } from "../components/BrandArt";
-import type { Reranker, VectorStore } from "../api/types";
+import type { ArtifactStore, Reranker, VectorStore } from "../api/types";
 import { StepRail } from "../components/setup/StepRail";
 import { Step1Aws } from "../components/setup/Step1Aws";
 import { Step2Choices } from "../components/setup/Step2Choices";
@@ -13,6 +13,7 @@ export interface WizardState {
   region: string;
   accountId: string;
   arn: string;
+  artifactStore: ArtifactStore;
   bucket: string;
   store: VectorStore;
   secrets: Record<string, string>;
@@ -26,6 +27,7 @@ const INITIAL: WizardState = {
   region: "us-east-1",
   accountId: "",
   arn: "",
+  artifactStore: "s3",
   // A short global bucket name; the verify step reports a collision if
   // another account already owns it, and the user can rename it here.
   bucket: "ingestlib",

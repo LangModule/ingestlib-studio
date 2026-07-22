@@ -40,6 +40,7 @@ export function StepFinish({
       bucket: state.bucket,
       vector_store: state.store,
       reranker: state.reranker,
+      artifact_store: state.artifactStore,
       secrets,
     };
     if (state.ocrUrl !== DEFAULT_OCR.url || state.ocrBackend !== DEFAULT_OCR.backend) {
@@ -58,7 +59,9 @@ export function StepFinish({
 
   const rows: [string, string][] = [
     ["AWS profile", `${state.profile} · ${state.region} · ${state.accountId}`],
-    ["S3 bucket", state.bucket],
+    state.artifactStore === "s3"
+      ? ["Artifact store", `S3 · ${state.bucket}`]
+      : ["Artifact store", "local · ~/.ingestlib/artifacts"],
     ["Vector database", state.store],
     ["Reranker", state.reranker],
     ...Object.entries(secrets).map(([key, value]) => [key, mask(value)] as [string, string]),

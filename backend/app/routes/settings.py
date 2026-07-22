@@ -38,6 +38,7 @@ class SettingsView(BaseModel):
     bucket: str
     vector_store: str
     reranker: str
+    artifact_store: str
     ocr_backend: str
     ocr_url: str
     # Names of the secrets present in .env; the values never leave the backend.
@@ -82,6 +83,7 @@ def _view() -> SettingsView:
         bucket=config.bucket,
         vector_store=config.vector_store,
         reranker=config.reranker,
+        artifact_store=config.artifact_store,
         ocr_backend=config.ocr_backend,
         ocr_url=config.ocr_url,
         secrets_set=sorted(config.secrets),

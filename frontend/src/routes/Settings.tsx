@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, followStageEvents } from "../api/client";
 import type {
+  ArtifactStore,
   BackfillStatus,
   CheckResult,
   CompleteRequest,
@@ -13,15 +14,16 @@ import type {
 import { StackChecklist } from "../components/StackChecklist";
 import { StageStepper } from "../components/pipeline/StageStepper";
 import { OpensearchDeployHint } from "../components/setup/OpensearchDeployHint";
-import { ChoiceCard, RERANKERS, STORES } from "../components/setup/Step2Choices";
+import { ARTIFACT_STORES, ChoiceCard, RERANKERS, STORES } from "../components/setup/Step2Choices";
 import { Button, Card, Field, Select, TextInput } from "../components/setup/ui";
 
 /* Settings: the effective configuration, edits applied without a restart,
-   the full stack status, and backfill. S3 is the source of truth; the
-   vector store is a derived index, so switching stores offers to rebuild
-   the new one from the stored split artifacts. */
+   the full stack status, and backfill. The artifact store is the source of
+   truth; the vector store is a derived index, so switching stores offers to
+   rebuild the new one from the stored split artifacts. */
 
 interface FormState {
+  artifactStore: ArtifactStore;
   bucket: string;
   store: VectorStore;
   reranker: Reranker;
@@ -58,6 +60,7 @@ export default function Settings() {
     const fresh = await api.settingsGet();
     setView(fresh);
     setForm({
+      artifactStore: fresh.artifact_store,
       bucket: fresh.bucket,
       store: fresh.vector_store,
       reranker: fresh.reranker,
@@ -97,6 +100,7 @@ export default function Settings() {
       bucket: form.bucket,
       vector_store: form.store,
       reranker: form.reranker,
+      artifact_store: form.artifactStore,
       secrets: Object.fromEntries(
         Object.entries(form.secrets).filter(([, value]) => value),
       ),
@@ -193,7 +197,9 @@ export default function Settings() {
             {(
               [
                 ["AWS", `${view.profile} · ${view.region} · ${view.account_id}`],
-                ["S3 bucket", view.bucket],
+                view.artifact_store === "s3"
+                  ? ["Artifact store", `S3 · ${view.bucket}`]
+                  : ["Artifact store", "local · ~/.ingestlib/artifacts"],
                 ["Vector store", view.vector_store],
                 ["Reranker", view.reranker],
                 ["OCR server", `${view.ocr_url} (${view.ocr_backend})`],
@@ -294,17 +300,40 @@ export default function Settings() {
             )}
           </div>
 
+          <div>
+            <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">
+              Artifact store
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {ARTIFACT_STORES.map((option) => (
+                <ChoiceCard
+                  key={option.id}
+                  selected={form.artifactStore === option.id}
+                  title={option.title}
+                  blurb={option.blurb}
+                  onSelect={() => setForm({ ...form, artifactStore: option.id })}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-ink-soft">
+              Changing the artifact store points the studio at a different registry;
+              existing documents stay where they were written.
+            </p>
+          </div>
+
           <Card className="flex flex-col gap-4">
-            <Field
-              label="S3 bucket (artifact store)"
-              hint="changing it points the studio at a different artifact registry"
-            >
-              <TextInput
-                value={form.bucket}
-                className="mono"
-                onChange={(e) => setForm({ ...form, bucket: e.target.value })}
-              />
-            </Field>
+            {form.artifactStore === "s3" && (
+              <Field
+                label="S3 bucket"
+                hint="changing it points the studio at a different artifact registry"
+              >
+                <TextInput
+                  value={form.bucket}
+                  className="mono"
+                  onChange={(e) => setForm({ ...form, bucket: e.target.value })}
+                />
+              </Field>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Field label="OCR server URL">
                 <TextInput
@@ -328,7 +357,10 @@ export default function Settings() {
           </Card>
 
           <div className="flex items-center gap-3">
-            <Button onClick={save} disabled={saving || !form.bucket}>
+            <Button
+              onClick={save}
+              disabled={saving || (form.artifactStore === "s3" && !form.bucket)}
+            >
               {saving ? "Applying…" : "Save & apply"}
             </Button>
             {saved && (
@@ -354,13 +386,13 @@ export default function Settings() {
         <h2 className="mb-2 text-sm font-semibold">Backfill</h2>
         <Card className="flex flex-col gap-3">
           <p className="text-sm text-ink-soft">
-            S3 is the source of truth; the vector store is a rebuildable index. Backfill
-            re-embeds the stored chunks into the selected store: no re-parse, no OCR
-            server, and the previous store is left untouched.
+            The artifact store is the source of truth; the vector store is a rebuildable
+            index. Backfill re-embeds the stored chunks into the selected store: no
+            re-parse, no OCR server, and the previous store is left untouched.
           </p>
           {backfill ? (
             <p className="mono text-sm">
-              S3 holds {backfill.documents} ingested document(s) ·{" "}
+              The artifact store holds {backfill.documents} ingested document(s) ·{" "}
               {view.vector_store} holds {backfill.in_store}
             </p>
           ) : (

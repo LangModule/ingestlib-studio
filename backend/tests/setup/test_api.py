@@ -145,6 +145,24 @@ def test_complete_writes_nondefault_bucket_and_paddle(client):
     assert "backend: vllm-server" in yaml_text and "server_url: http://gpu-box:8111/" in yaml_text
 
 
+def test_complete_writes_local_artifact_store_and_defaults_stay_unwritten(client):
+    client.post("/api/setup/complete", json={**_ANSWERS, "artifact_store": "local"})
+    yaml_text = bootstrap.config_path().read_text()
+    assert "artifact_store: local" in yaml_text
+
+    client.post("/api/setup/complete", json=_ANSWERS)  # s3 is the default
+    assert "artifact_store" not in bootstrap.config_path().read_text()
+
+
+def test_iam_policy_omits_s3_statements_for_local_artifacts(client):
+    from app.setup.policy import build_iam_policy
+
+    policy = build_iam_policy("123456789012", "ingestlib", "jina", artifact_store="local")
+    sids = [s["Sid"] for s in policy["Statement"]]
+    assert "IngestlibBucket" not in sids and "IngestlibObjects" not in sids
+    assert "IngestlibBedrock" in sids
+
+
 def test_complete_rejects_unknown_secret_keys(client):
     answers = {**_ANSWERS, "secrets": {"EVIL_KEY": "x"}}
     assert client.post("/api/setup/complete", json=answers).status_code == 422

@@ -6,7 +6,8 @@ import { Button, Card } from "./ui";
 
 type RowState = { status: "idle" | "running" | "ok" | "fail"; result?: CheckResult };
 
-const ROWS = ["Bedrock (Nova LLM + embeddings)", "S3 bucket", "Vector database", "Reranker"] as const;
+const S3_ROW = "S3 bucket";
+const BASE_ROWS = ["Bedrock (Nova LLM + embeddings)", S3_ROW, "Vector database", "Reranker"];
 
 // When several checks fail, the guidance card for the most fundamental
 // problem wins: credentials first, then IAM, then model access.
@@ -28,9 +29,16 @@ export function Step3Permissions({
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [running, setRunning] = useState(false);
 
+  // A local artifact store needs no bucket: no S3 check, no S3 IAM statements.
+  const activeRows = BASE_ROWS.filter(
+    (row) => row !== S3_ROW || state.artifactStore === "s3",
+  );
+
   useEffect(() => {
-    api.iamPolicy(state.accountId, state.bucket, state.reranker, state.store).then(setPolicy);
-  }, [state.accountId, state.bucket, state.reranker, state.store]);
+    api
+      .iamPolicy(state.accountId, state.bucket, state.reranker, state.store, state.artifactStore)
+      .then(setPolicy);
+  }, [state.accountId, state.bucket, state.reranker, state.store, state.artifactStore]);
 
   const copy = () => {
     navigator.clipboard.writeText(JSON.stringify(policy, null, 2));
@@ -43,17 +51,21 @@ export function Step3Permissions({
     const set = (row: string, value: RowState) =>
       setRows((previous) => ({ ...previous, [row]: value }));
     const probes: [string, () => Promise<CheckResult>][] = [
-      [ROWS[0], () => api.checkBedrock(state.profile, state.region)],
-      [ROWS[1], () => api.checkS3(state.profile, state.region, state.bucket)],
-      [ROWS[2], () => api.checkVectorDb(state.store, state.secrets, state.profile, state.region)],
-      [ROWS[3], () =>
+      ["Bedrock (Nova LLM + embeddings)", () => api.checkBedrock(state.profile, state.region)],
+      [S3_ROW, () => api.checkS3(state.profile, state.region, state.bucket)],
+      ["Vector database",
+        () => api.checkVectorDb(state.store, state.secrets, state.profile, state.region)],
+      ["Reranker", () =>
         api.checkReranker(
           state.reranker,
           state.secrets.JINA_API_KEY ?? "",
           state.profile,
           state.region,
         )],
-    ];
+    ].filter(([row]) => activeRows.includes(row as string)) as [
+      string,
+      () => Promise<CheckResult>,
+    ][];
     for (const [row, probe] of probes) {
       set(row, { status: "running" });
       try {
@@ -72,7 +84,7 @@ export function Step3Permissions({
   const failures = Object.values(rows).filter((row) => row.status === "fail");
   const worstKind =
     KIND_PRIORITY.find((kind) => failures.some((f) => f.result?.kind === kind)) ?? null;
-  const allOk = ROWS.every((row) => rows[row]?.status === "ok");
+  const allOk = activeRows.every((row) => rows[row]?.status === "ok");
 
   return (
     <div className="flex flex-col gap-5">
@@ -87,7 +99,8 @@ export function Step3Permissions({
       <Card>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-semibold">
-            IAM policy, pre-filled for account {state.accountId} and bucket {state.bucket}
+            IAM policy, pre-filled for account {state.accountId}
+            {state.artifactStore === "s3" && ` and bucket ${state.bucket}`}
             {state.reranker === "aws" && ", including Amazon Rerank"}
             {state.store === "opensearch" && ", including OpenSearch domain deploy"}
           </span>
@@ -102,7 +115,7 @@ export function Step3Permissions({
       </Card>
 
       <Card className="flex flex-col gap-3">
-        {ROWS.map((row) => {
+        {activeRows.map((row) => {
           const rowState = rows[row] ?? { status: "idle" };
           return (
             <div key={row} className="flex items-start justify-between gap-4">

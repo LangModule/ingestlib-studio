@@ -1,4 +1,5 @@
 import type {
+  ArtifactStore,
   BackfillJobResponse,
   BackfillStatus,
   CheckResult,
@@ -58,10 +59,17 @@ export const api = {
   awsProfiles: () => get<{ profiles: string[] }>("/api/setup/aws-profiles"),
   checkAws: (profile: string, region: string) =>
     post<CheckResult>("/api/setup/check/aws", { profile, region }),
-  iamPolicy: (accountId: string, bucket: string, reranker: Reranker, store: VectorStore) =>
+  iamPolicy: (
+    accountId: string,
+    bucket: string,
+    reranker: Reranker,
+    store: VectorStore,
+    artifactStore: ArtifactStore,
+  ) =>
     get<object>(
       `/api/setup/iam-policy?account_id=${encodeURIComponent(accountId)}` +
-        `&bucket=${encodeURIComponent(bucket)}&reranker=${reranker}&vector_store=${store}`,
+        `&bucket=${encodeURIComponent(bucket)}&reranker=${reranker}&vector_store=${store}` +
+        `&artifact_store=${artifactStore}`,
     ),
   opensearchTemplateUrl: (masterUserArn: string) =>
     `/api/setup/opensearch-template?master_user_arn=${encodeURIComponent(masterUserArn)}`,

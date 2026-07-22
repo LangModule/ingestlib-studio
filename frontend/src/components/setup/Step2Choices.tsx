@@ -123,6 +123,19 @@ export const STORES: StoreOption[] = [
   },
 ];
 
+export const ARTIFACT_STORES: { id: "s3" | "local"; title: string; blurb: string }[] = [
+  {
+    id: "s3",
+    title: "S3",
+    blurb: "Durable and shareable: parses, page images, and chunks live in your bucket, created on first use.",
+  },
+  {
+    id: "local",
+    title: "Local folder",
+    blurb: "Zero cloud storage: everything lives in ~/.ingestlib/artifacts, browsable in your file manager.",
+  },
+];
+
 export const RERANKERS: { id: Reranker; title: string; blurb: string }[] = [
   {
     id: "jina",
@@ -200,18 +213,34 @@ export function Step2Choices({
         </p>
       </header>
 
-      <Card>
-        <Field
-          label="S3 bucket (artifact store)"
-          hint="bucket names are global across AWS · created automatically on first use"
-        >
-          <TextInput
-            value={state.bucket}
-            className="mono"
-            onChange={(e) => patch({ bucket: e.target.value })}
-          />
-        </Field>
-      </Card>
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">Artifact store</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {ARTIFACT_STORES.map((option) => (
+            <ChoiceCard
+              key={option.id}
+              selected={state.artifactStore === option.id}
+              title={option.title}
+              blurb={option.blurb}
+              onSelect={() => patch({ artifactStore: option.id })}
+            />
+          ))}
+        </div>
+        {state.artifactStore === "s3" && (
+          <Card className="mt-3">
+            <Field
+              label="S3 bucket"
+              hint="bucket names are global across AWS · created automatically on first use"
+            >
+              <TextInput
+                value={state.bucket}
+                className="mono"
+                onChange={(e) => patch({ bucket: e.target.value })}
+              />
+            </Field>
+          </Card>
+        )}
+      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">Vector database</h2>
@@ -285,7 +314,12 @@ export function Step2Choices({
 
       <div className="flex justify-between">
         <Button kind="ghost" onClick={onBack}>← Back</Button>
-        <Button onClick={onNext} disabled={!state.bucket || jinaKeyMissing || storeKeyMissing}>
+        <Button
+          onClick={onNext}
+          disabled={
+            (state.artifactStore === "s3" && !state.bucket) || jinaKeyMissing || storeKeyMissing
+          }
+        >
           Next: Permissions →
         </Button>
       </div>

@@ -29,6 +29,8 @@ def render_config_yaml(answers: CompleteRequest) -> str:
         "",
         f"reranker: {answers.reranker}",
     ]
+    if answers.artifact_store != "s3":  # the default stays unwritten
+        lines += ["", f"artifact_store: {answers.artifact_store}"]
     if answers.bucket != f"ingestlib-{answers.aws.account_id}":  # the default stays unwritten
         lines += ["", "s3:", f"  bucket: {answers.bucket}"]
     paddle = answers.paddle_vl

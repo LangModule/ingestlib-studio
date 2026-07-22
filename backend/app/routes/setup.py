@@ -77,11 +77,15 @@ def check_aws(body: AwsCheckRequest) -> CheckResult:
 
 @router.get("/iam-policy")
 def iam_policy(
-    account_id: str, bucket: str, reranker: str = "jina", vector_store: str = ""
+    account_id: str,
+    bucket: str,
+    reranker: str = "jina",
+    vector_store: str = "",
+    artifact_store: str = "s3",
 ) -> dict:
     if reranker not in ("jina", "aws", "none"):
         raise HTTPException(status_code=422, detail=f"unknown reranker {reranker!r}")
-    return policy.build_iam_policy(account_id, bucket, reranker, vector_store)
+    return policy.build_iam_policy(account_id, bucket, reranker, vector_store, artifact_store)
 
 
 _OPENSEARCH_TEMPLATE = Path(__file__).parent.parent / "setup" / "opensearch-domain.yaml"

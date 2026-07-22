@@ -41,8 +41,8 @@ def stub_registry(monkeypatch):
         registry, "load_view", lambda doc_id: (VIEW, {(1, 5): "page1_region5_chart.png"})
     )
     monkeypatch.setattr(
-        registry, "page_image_url",
-        lambda doc_id, page_num: f"https://s3.example/{doc_id}/p{page_num}",
+        registry, "page_image",
+        lambda doc_id, page_num: (f"https://s3.example/{doc_id}/p{page_num}", None),
     )
 
 
@@ -80,7 +80,7 @@ def test_page_image_redirects_to_the_presigned_url(configured_client, stub_regis
 
 
 def test_figure_image_redirects_via_the_filename_map(configured_client, stub_registry, monkeypatch):
-    monkeypatch.setattr(registry, "_presign", lambda key: f"https://s3.example/{key}")
+    monkeypatch.setattr(registry, "_image_payload", lambda key: (f"https://s3.example/{key}", None))
     response = configured_client.get(
         "/api/documents/abc123/pages/1/figures/5/image", follow_redirects=False
     )
@@ -88,6 +88,14 @@ def test_figure_image_redirects_via_the_filename_map(configured_client, stub_reg
     assert response.headers["location"].endswith(
         "documents/abc123/parse/figures/page1_region5_chart.png"
     )
+
+
+def test_page_image_streams_bytes_on_a_local_artifact_store(configured_client, monkeypatch):
+    monkeypatch.setattr(registry, "page_image", lambda doc_id, page_num: (None, b"\x89PNG-page"))
+    response = configured_client.get("/api/documents/abc123/pages/2/image")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content == b"\x89PNG-page"
 
 
 def test_unknown_figure_is_404(configured_client, stub_registry):

@@ -24,6 +24,7 @@ class RuntimeConfig:
     bucket: str
     vector_store: str
     reranker: str
+    artifact_store: str
     ocr_backend: str
     ocr_url: str
     secrets: dict[str, str] = field(default_factory=dict)
@@ -59,6 +60,7 @@ def read_runtime_config() -> RuntimeConfig | None:
         bucket=str(s3.get("bucket", f"ingestlib-{account_id}")),
         vector_store=str(data.get("vector_store", "pinecone")),
         reranker=str(data.get("reranker", "jina")),
+        artifact_store=str(data.get("artifact_store", "s3")),
         ocr_backend=str(paddle.get("backend", "mlx-vlm-server")),
         ocr_url=str(paddle.get("server_url", OCR_DEFAULT_URL)),
         secrets=secrets,

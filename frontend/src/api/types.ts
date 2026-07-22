@@ -25,11 +25,14 @@ export interface SetupStatus {
   checks: Record<string, string>;
 }
 
+export type ArtifactStore = "s3" | "local";
+
 export interface CompleteRequest {
   aws: { profile: string; region: string; account_id: string };
   bucket: string;
   vector_store: VectorStore;
   reranker: Reranker;
+  artifact_store: ArtifactStore;
   secrets: Record<string, string>;
   paddle_vl?: { backend: "mlx-vlm-server" | "vllm-server"; server_url: string };
 }
@@ -148,6 +151,7 @@ export interface SettingsView {
   bucket: string;
   vector_store: VectorStore;
   reranker: Reranker;
+  artifact_store: ArtifactStore;
   ocr_backend: "mlx-vlm-server" | "vllm-server";
   ocr_url: string;
   secrets_set: string[];

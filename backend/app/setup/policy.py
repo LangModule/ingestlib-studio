@@ -10,15 +10,20 @@ from app.setup.defaults import (
 
 
 def build_iam_policy(
-    account_id: str, bucket: str, reranker: str, vector_store: str = ""
+    account_id: str,
+    bucket: str,
+    reranker: str,
+    vector_store: str = "",
+    artifact_store: str = "s3",
 ) -> dict[str, Any]:
     """Return the least-privilege policy for the given answers.
 
     The Nova model id is a cross-region inference profile, so the policy
     needs both the account-scoped profile ARN and the underlying model ARNs
     in every region the profile can route to; that is why the model ARNs use
-    a wildcard region. s3:DeleteObject is included because the studio's
-    document-delete feature uses it."""
+    a wildcard region. The S3 statements exist only when artifacts live on
+    S3 (a local artifact store needs no bucket at all); s3:DeleteObject is
+    included because the studio's document-delete feature uses it."""
     statements: list[dict[str, Any]] = [
         {
             "Sid": "IngestlibBedrock",
@@ -30,19 +35,20 @@ def build_iam_policy(
                 f"arn:aws:bedrock:*:{account_id}:inference-profile/{LLM_MODEL_ID}",
             ],
         },
-        {
+    ]
+    if artifact_store == "s3":
+        statements.append({
             "Sid": "IngestlibBucket",
             "Effect": "Allow",
             "Action": ["s3:CreateBucket", "s3:ListBucket"],
             "Resource": f"arn:aws:s3:::{bucket}",
-        },
-        {
+        })
+        statements.append({
             "Sid": "IngestlibObjects",
             "Effect": "Allow",
             "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
             "Resource": f"arn:aws:s3:::{bucket}/*",
-        },
-    ]
+        })
     if reranker == "aws":
         statements.append({
             "Sid": "IngestlibRerank",
