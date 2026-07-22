@@ -172,9 +172,9 @@ def figure_image(doc_id: str, page_num: int, region_id: int) -> ImagePayload | N
 def clear_caches() -> None:
     """Forget every cached view and filename.
 
-    Settings calls this after a configuration change: a new bucket means
-    the cached documents may no longer be the ones the registry would
-    serve."""
+    Settings calls this after a configuration change: a different bucket or
+    artifact folder means the cached documents may no longer be the ones the
+    registry would serve."""
     with _lock:
         _cache.clear()
         _filenames.clear()

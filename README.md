@@ -37,6 +37,10 @@ setup wizard opens automatically; it verifies your AWS access, storage, and
 reranker with real calls, then writes `~/.ingestlib/{config.yaml,.env}` and
 activates them without a restart.
 
+Artifacts live in your S3 bucket or a plain local folder
+(`~/.ingestlib/artifacts`) — pick in the wizard. With the local folder and
+the SQLite vector store, AWS is needed only for Bedrock.
+
 Other targets: `make dev-unconfigured` simulates a fresh machine even when
 this one is configured; `make serve` serves the built frontend from the
 backend on :8000; `make test` and `make lint` cover the backend.
