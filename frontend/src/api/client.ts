@@ -1,4 +1,5 @@
 import type {
+  AiProvider,
   ArtifactStore,
   BackfillJobResponse,
   BackfillStatus,
@@ -65,11 +66,12 @@ export const api = {
     reranker: Reranker,
     store: VectorStore,
     artifactStore: ArtifactStore,
+    aiProvider: AiProvider,
   ) =>
     get<object>(
       `/api/setup/iam-policy?account_id=${encodeURIComponent(accountId)}` +
         `&bucket=${encodeURIComponent(bucket)}&reranker=${reranker}&vector_store=${store}` +
-        `&artifact_store=${artifactStore}`,
+        `&artifact_store=${artifactStore}&ai_provider=${aiProvider}`,
     ),
   opensearchTemplateUrl: (masterUserArn: string) =>
     `/api/setup/opensearch-template?master_user_arn=${encodeURIComponent(masterUserArn)}`,
@@ -92,6 +94,8 @@ export const api = {
     }),
   checkOcr: (serverUrl: string) =>
     post<CheckResult>("/api/setup/check/ocr", { server_url: serverUrl }),
+  checkOpenai: (apiKey: string) =>
+    post<CheckResult>("/api/setup/check/openai", { api_key: apiKey }),
   checkLibreOffice: () => get<CheckResult>("/api/setup/check/libreoffice"),
   health: () => get<Record<string, CheckResult>>("/api/setup/health"),
   complete: (body: CompleteRequest) => post<SetupStatus>("/api/setup/complete", body),

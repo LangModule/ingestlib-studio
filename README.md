@@ -19,8 +19,9 @@ configuration without a restart, plus vector-store backfill).
 
 - Python 3.12+ and [uv](https://github.com/astral-sh/uv)
 - Node.js 20+ (frontend build)
-- An AWS account with Bedrock access. The setup wizard walks you through
-  everything else, including the IAM policy it needs.
+- An AWS account. The wizard's default AI provider is Bedrock; picking
+  OpenAI instead needs only an API key, and the wizard then asks for no
+  Bedrock access or IAM policy at all.
 
 ## Run
 
@@ -37,9 +38,11 @@ setup wizard opens automatically; it verifies your AWS access, storage, and
 reranker with real calls, then writes `~/.ingestlib/{config.yaml,.env}` and
 activates them without a restart.
 
-Artifacts live in your S3 bucket or a plain local folder
-(`~/.ingestlib/artifacts`) — pick in the wizard. With the local folder and
-the SQLite vector store, AWS is needed only for Bedrock.
+The wizard offers a choice at every layer: AI models on AWS Bedrock or
+OpenAI (one API key), artifacts in your S3 bucket or a plain local folder
+(`~/.ingestlib/artifacts`), and eight vector stores. Picking OpenAI with
+the local folder and SQLite runs the whole pipeline without any AWS
+permissions.
 
 Other targets: `make dev-unconfigured` simulates a fresh machine even when
 this one is configured; `make serve` serves the built frontend from the

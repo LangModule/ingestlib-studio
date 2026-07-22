@@ -33,6 +33,7 @@ def test_view_resolves_defaults_for_the_minimal_config(configured_client):
     assert body["profile"] == "p" and body["account_id"] == "1"
     assert body["bucket"] == "ingestlib-1"
     assert body["vector_store"] == "pinecone" and body["reranker"] == "jina"
+    assert body["ai_provider"] == "bedrock"
     assert body["ocr_backend"] == "mlx-vlm-server"
     assert body["secrets_set"] == []
 
@@ -43,6 +44,16 @@ def test_update_rewrites_the_files_and_reports_the_new_state(configured_client):
     assert body["secrets_set"] == ["JINA_API_KEY"]
     yaml_text = bootstrap.config_path().read_text()
     assert "bucket: my-bucket" in yaml_text and "vector_store: sqlite" in yaml_text
+
+
+def test_update_switches_the_ai_provider(configured_client):
+    answers = {**_ANSWERS, "ai_provider": "openai",
+               "secrets": {"OPENAI_API_KEY": "sk-key"}}
+    body = configured_client.put("/api/settings", json=answers).json()
+    assert body["ai_provider"] == "openai"
+    yaml_text = bootstrap.config_path().read_text()
+    assert "llm_provider: openai" in yaml_text
+    assert "embedding_provider: openai" in yaml_text
 
 
 def test_update_keeps_secrets_the_body_omits(configured_client):

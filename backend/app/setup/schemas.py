@@ -9,6 +9,7 @@ VectorStore = Literal[
 ]
 Reranker = Literal["jina", "aws", "none"]
 ArtifactStore = Literal["s3", "local"]
+AiProvider = Literal["bedrock", "openai"]
 
 # The only keys the wizard may write to .env. Anything else is rejected.
 ALLOWED_SECRET_KEYS = (
@@ -82,6 +83,10 @@ class OcrCheckRequest(BaseModel):
     server_url: str = "http://localhost:8111/"
 
 
+class OpenAiCheckRequest(BaseModel):
+    api_key: str = ""
+
+
 class AwsAnswers(BaseModel):
     profile: str
     region: str
@@ -104,5 +109,6 @@ class CompleteRequest(BaseModel):
     vector_store: VectorStore
     reranker: Reranker
     artifact_store: ArtifactStore = "s3"
+    ai_provider: AiProvider = "bedrock"
     secrets: dict[str, str] = Field(default_factory=dict)
     paddle_vl: PaddleAnswers | None = None

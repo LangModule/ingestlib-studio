@@ -17,6 +17,7 @@ from app.setup.schemas import (
     CheckResult,
     CompleteRequest,
     OcrCheckRequest,
+    OpenAiCheckRequest,
     RerankerCheckRequest,
     S3CheckRequest,
     SetupStatus,
@@ -45,14 +46,23 @@ def status() -> SetupStatus:
 def health() -> dict[str, CheckResult]:
     """Run every check the pipeline depends on, using the active configuration.
 
-    The Bedrock and reranker probes each make one real, tiny call, so this
-    endpoint backs an explicit refresh in the UI rather than a poll."""
+    The llm and reranker probes each make one real, tiny call, so this
+    endpoint backs an explicit refresh in the UI rather than a poll. The llm
+    and artifacts entries follow the configured provider and store."""
     config = runtime.read_runtime_config()
     if config is None:
         raise HTTPException(status_code=500, detail="the configuration file is unreadable")
+    if config.ai_provider == "openai":
+        llm = checks.check_openai(config.secrets.get("OPENAI_API_KEY", ""))
+    else:
+        llm = checks.check_bedrock(config.profile, config.region)
+    if config.artifact_store == "local":
+        artifacts = checks.check_local_artifacts(bootstrap.config_dir())
+    else:
+        artifacts = checks.check_s3(config.profile, config.region, config.bucket)
     return {
-        "bedrock": checks.check_bedrock(config.profile, config.region),
-        "s3": checks.check_s3(config.profile, config.region, config.bucket),
+        "llm": llm,
+        "artifacts": artifacts,
         "vectordb": checks.check_vectordb(
             config.vector_store, config.secrets, config.profile, config.region,
         ),
@@ -82,10 +92,15 @@ def iam_policy(
     reranker: str = "jina",
     vector_store: str = "",
     artifact_store: str = "s3",
+    ai_provider: str = "bedrock",
 ) -> dict:
     if reranker not in ("jina", "aws", "none"):
         raise HTTPException(status_code=422, detail=f"unknown reranker {reranker!r}")
-    return policy.build_iam_policy(account_id, bucket, reranker, vector_store, artifact_store)
+    if ai_provider not in ("bedrock", "openai"):
+        raise HTTPException(status_code=422, detail=f"unknown ai_provider {ai_provider!r}")
+    return policy.build_iam_policy(
+        account_id, bucket, reranker, vector_store, artifact_store, ai_provider
+    )
 
 
 _OPENSEARCH_TEMPLATE = Path(__file__).parent.parent / "setup" / "opensearch-domain.yaml"
@@ -128,6 +143,11 @@ def check_reranker(body: RerankerCheckRequest) -> CheckResult:
 @router.post("/check/ocr", response_model=CheckResult)
 def check_ocr(body: OcrCheckRequest) -> CheckResult:
     return checks.check_ocr(body.server_url)
+
+
+@router.post("/check/openai", response_model=CheckResult)
+def check_openai(body: OpenAiCheckRequest) -> CheckResult:
+    return checks.check_openai(body.api_key)
 
 
 @router.get("/check/libreoffice", response_model=CheckResult)

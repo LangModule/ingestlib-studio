@@ -15,17 +15,20 @@ def build_iam_policy(
     reranker: str,
     vector_store: str = "",
     artifact_store: str = "s3",
+    ai_provider: str = "bedrock",
 ) -> dict[str, Any]:
     """Return the least-privilege policy for the given answers.
 
     The Nova model id is a cross-region inference profile, so the policy
     needs both the account-scoped profile ARN and the underlying model ARNs
     in every region the profile can route to; that is why the model ARNs use
-    a wildcard region. The S3 statements exist only when artifacts live on
-    S3 (a local artifact store needs no bucket at all); s3:DeleteObject is
-    included because the studio's document-delete feature uses it."""
-    statements: list[dict[str, Any]] = [
-        {
+    a wildcard region. The Bedrock statement exists only when Bedrock serves
+    the LLM and embeddings (OpenAI needs no IAM at all), and the S3
+    statements only when artifacts live on S3; s3:DeleteObject is included
+    because the studio's document-delete feature uses it."""
+    statements: list[dict[str, Any]] = []
+    if ai_provider == "bedrock":
+        statements.append({
             "Sid": "IngestlibBedrock",
             "Effect": "Allow",
             "Action": "bedrock:InvokeModel",
@@ -34,8 +37,7 @@ def build_iam_policy(
                 f"arn:aws:bedrock:*::foundation-model/{EMBEDDING_MODEL_ID}",
                 f"arn:aws:bedrock:*:{account_id}:inference-profile/{LLM_MODEL_ID}",
             ],
-        },
-    ]
+        })
     if artifact_store == "s3":
         statements.append({
             "Sid": "IngestlibBucket",

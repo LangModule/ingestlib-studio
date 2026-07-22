@@ -1148,7 +1148,7 @@ wheels = [
 
 [[package]]
 name = "ingestlib"
-version = "0.5.0"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1176,9 +1176,9 @@ dependencies = [
     { name = "sqlite-vec" },
     { name = "weaviate-client" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/94/f5/5ec16b00acbd1872c1f54340fe6c10d7ef93f94fcdc65a9f1bce33907507/ingestlib-0.5.0.tar.gz", hash = "sha256:dd4fe6b16abe632e9537ad33b3069a34d913471855ee542fc8a6fd91fd8aa339", size = 11619317, upload-time = "2026-07-22T07:28:47.903Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/97/f0/641288cd685ed2e29f5577d1003506afb8d0618877b2144e7a42008fff7d/ingestlib-0.6.0.tar.gz", hash = "sha256:709b0e8a5328f80b89e3b82aa60c7b1358efb930e5b3f4806f66e264bef2f905", size = 11621325, upload-time = "2026-07-22T08:10:27.936Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/36/e0/86f4f6ccf6a971a0e5d8086d82e43bf91e7e2cc71994be305b7af79d22ba/ingestlib-0.5.0-py3-none-any.whl", hash = "sha256:04b3af6c8dfcd7a9bb56cdb85bfd3a90ec19cdc8b274bda71f1eaed9bd031662", size = 146462, upload-time = "2026-07-22T07:28:49.795Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/d7/12e346d0ba722d41af05b5fb677ff0e49ce3799cfa393bac60567b92553b/ingestlib-0.6.0-py3-none-any.whl", hash = "sha256:91cb7cca7c815653be4e111cb7bf84d7334ffce17d339d54d0c0b0fbaa5302e7", size = 148059, upload-time = "2026-07-22T08:10:25.94Z" },
 ]
 
 [[package]]
@@ -1203,7 +1203,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "ingestlib", specifier = ">=0.5.0" },
+    { name = "ingestlib", specifier = ">=0.6.0" },
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]

@@ -25,6 +25,7 @@ class RuntimeConfig:
     vector_store: str
     reranker: str
     artifact_store: str
+    ai_provider: str
     ocr_backend: str
     ocr_url: str
     secrets: dict[str, str] = field(default_factory=dict)
@@ -61,6 +62,9 @@ def read_runtime_config() -> RuntimeConfig | None:
         vector_store=str(data.get("vector_store", "pinecone")),
         reranker=str(data.get("reranker", "jina")),
         artifact_store=str(data.get("artifact_store", "s3")),
+        # The wizard writes llm_provider and embedding_provider together, so
+        # one of them stands for the pair here.
+        ai_provider=str(data.get("llm_provider", "bedrock")),
         ocr_backend=str(paddle.get("backend", "mlx-vlm-server")),
         ocr_url=str(paddle.get("server_url", OCR_DEFAULT_URL)),
         secrets=secrets,

@@ -26,6 +26,7 @@ export interface SetupStatus {
 }
 
 export type ArtifactStore = "s3" | "local";
+export type AiProvider = "bedrock" | "openai";
 
 export interface CompleteRequest {
   aws: { profile: string; region: string; account_id: string };
@@ -33,6 +34,7 @@ export interface CompleteRequest {
   vector_store: VectorStore;
   reranker: Reranker;
   artifact_store: ArtifactStore;
+  ai_provider: AiProvider;
   secrets: Record<string, string>;
   paddle_vl?: { backend: "mlx-vlm-server" | "vllm-server"; server_url: string };
 }
@@ -152,6 +154,7 @@ export interface SettingsView {
   vector_store: VectorStore;
   reranker: Reranker;
   artifact_store: ArtifactStore;
+  ai_provider: AiProvider;
   ocr_backend: "mlx-vlm-server" | "vllm-server";
   ocr_url: string;
   secrets_set: string[];

@@ -7,6 +7,7 @@ instead of raising; every failure becomes a guidance card in the UI rather
 than an HTTP 500.
 """
 import configparser
+import os
 import re
 import shutil
 from pathlib import Path
@@ -27,6 +28,8 @@ from app.setup.defaults import (
     JINA_BASE_URL,
     JINA_RERANK_MODEL_ID,
     LLM_MODEL_ID,
+    OPENAI_EMBEDDING_MODEL_ID,
+    OPENAI_LLM_MODEL_ID,
 )
 from app.setup.schemas import CheckResult
 
@@ -331,6 +334,47 @@ def check_reranker(reranker: str, api_key: str, profile: str, region: str) -> Ch
         )
     except Exception as exc:  # noqa: BLE001
         return _classify_aws_error(exc)
+
+
+def check_openai(api_key: str) -> CheckResult:
+    """Verify the key against the two models the pipeline will use.
+
+    GET /v1/models/{id} proves both that the key is valid and that this
+    account can see the model, without spending a token."""
+    if not api_key:
+        return CheckResult(ok=False, kind="credentials", detail="OPENAI_API_KEY is required")
+    headers = {"Authorization": f"Bearer {api_key}"}
+    try:
+        for model in (OPENAI_LLM_MODEL_ID, OPENAI_EMBEDDING_MODEL_ID):
+            response = httpx.get(
+                f"https://api.openai.com/v1/models/{model}", headers=headers, timeout=10.0
+            )
+            if response.status_code == 401:
+                return CheckResult(
+                    ok=False, kind="credentials", detail="OpenAI rejected the key"
+                )
+            if response.status_code == 404:
+                return CheckResult(
+                    ok=False, kind="model-access",
+                    detail=f"this OpenAI account cannot see {model}",
+                )
+            response.raise_for_status()
+        return CheckResult(
+            ok=True,
+            detail=f"{OPENAI_LLM_MODEL_ID} + {OPENAI_EMBEDDING_MODEL_ID} available",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return CheckResult(ok=False, kind="error", detail=f"{type(exc).__name__}: {exc}")
+
+
+def check_local_artifacts(config_dir: Path) -> CheckResult:
+    """The local artifact folder lives beside config.yaml; writable is all
+    it takes."""
+    folder = config_dir / "artifacts"
+    target = folder if folder.exists() else config_dir
+    if target.exists() and not os.access(target, os.W_OK):
+        return CheckResult(ok=False, kind="error", detail=f"{folder} is not writable")
+    return CheckResult(ok=True, detail=f"local folder · {folder}")
 
 
 def check_ocr(server_url: str) -> CheckResult:

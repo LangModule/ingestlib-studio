@@ -31,6 +31,7 @@ def test_minimal_config_resolves_library_defaults(scratch):
     assert config.bucket == "ingestlib-123456789012"
     assert config.vector_store == "pinecone"
     assert config.reranker == "jina"
+    assert config.ai_provider == "bedrock"
     assert config.ocr_backend == "mlx-vlm-server"
     assert config.ocr_url == "http://localhost:8111/"
     assert config.secrets == {}
@@ -41,6 +42,7 @@ def test_overrides_and_secrets_are_read(scratch):
         scratch,
         _MINIMAL
         + "vector_store: sqlite\nreranker: none\n"
+        + "llm_provider: openai\nembedding_provider: openai\n"
         + "s3:\n  bucket: my-bucket\n"
         + "paddle_vl:\n  server_url: http://gpu-box:8111/\n",
         env_text="JINA_API_KEY=abc\nEMPTY_KEY=\n",
@@ -49,6 +51,7 @@ def test_overrides_and_secrets_are_read(scratch):
     assert config is not None
     assert config.vector_store == "sqlite"
     assert config.reranker == "none"
+    assert config.ai_provider == "openai"
     assert config.bucket == "my-bucket"
     assert config.ocr_url == "http://gpu-box:8111/"
     assert config.secrets == {"JINA_API_KEY": "abc"}, "blank values are dropped"

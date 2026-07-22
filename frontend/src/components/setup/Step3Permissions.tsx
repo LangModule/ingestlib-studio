@@ -6,8 +6,10 @@ import { Button, Card } from "./ui";
 
 type RowState = { status: "idle" | "running" | "ok" | "fail"; result?: CheckResult };
 
+const BEDROCK_ROW = "Bedrock (Nova LLM + embeddings)";
+const OPENAI_ROW = "OpenAI (GPT-5 + embeddings)";
 const S3_ROW = "S3 bucket";
-const BASE_ROWS = ["Bedrock (Nova LLM + embeddings)", S3_ROW, "Vector database", "Reranker"];
+const BASE_ROWS = [BEDROCK_ROW, OPENAI_ROW, S3_ROW, "Vector database", "Reranker"];
 
 // When several checks fail, the guidance card for the most fundamental
 // problem wins: credentials first, then IAM, then model access.
@@ -29,16 +31,24 @@ export function Step3Permissions({
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [running, setRunning] = useState(false);
 
-  // A local artifact store needs no bucket: no S3 check, no S3 IAM statements.
-  const activeRows = BASE_ROWS.filter(
-    (row) => row !== S3_ROW || state.artifactStore === "s3",
-  );
+  // Only the rows the choices actually need: the AI-models row follows the
+  // provider, and a local artifact store needs no bucket at all.
+  const activeRows = BASE_ROWS.filter((row) => {
+    if (row === BEDROCK_ROW) return state.aiProvider === "bedrock";
+    if (row === OPENAI_ROW) return state.aiProvider === "openai";
+    if (row === S3_ROW) return state.artifactStore === "s3";
+    return true;
+  });
 
   useEffect(() => {
     api
-      .iamPolicy(state.accountId, state.bucket, state.reranker, state.store, state.artifactStore)
+      .iamPolicy(
+        state.accountId, state.bucket, state.reranker, state.store,
+        state.artifactStore, state.aiProvider,
+      )
       .then(setPolicy);
-  }, [state.accountId, state.bucket, state.reranker, state.store, state.artifactStore]);
+  }, [state.accountId, state.bucket, state.reranker, state.store,
+      state.artifactStore, state.aiProvider]);
 
   const copy = () => {
     navigator.clipboard.writeText(JSON.stringify(policy, null, 2));
@@ -51,7 +61,8 @@ export function Step3Permissions({
     const set = (row: string, value: RowState) =>
       setRows((previous) => ({ ...previous, [row]: value }));
     const probes: [string, () => Promise<CheckResult>][] = [
-      ["Bedrock (Nova LLM + embeddings)", () => api.checkBedrock(state.profile, state.region)],
+      [BEDROCK_ROW, () => api.checkBedrock(state.profile, state.region)],
+      [OPENAI_ROW, () => api.checkOpenai(state.secrets.OPENAI_API_KEY ?? "")],
       [S3_ROW, () => api.checkS3(state.profile, state.region, state.bucket)],
       ["Vector database",
         () => api.checkVectorDb(state.store, state.secrets, state.profile, state.region)],
@@ -81,38 +92,57 @@ export function Step3Permissions({
     setRunning(false);
   };
 
-  const failures = Object.values(rows).filter((row) => row.status === "fail");
+  // The OpenAI row gets its own guidance below; its failures must not
+  // trigger the AWS credential/IAM cards.
+  const awsFailures = Object.entries(rows)
+    .filter(([row, rowState]) => row !== OPENAI_ROW && rowState.status === "fail")
+    .map(([, rowState]) => rowState);
   const worstKind =
-    KIND_PRIORITY.find((kind) => failures.some((f) => f.result?.kind === kind)) ?? null;
+    KIND_PRIORITY.find((kind) => awsFailures.some((f) => f.result?.kind === kind)) ?? null;
+  const openaiFailed = rows[OPENAI_ROW]?.status === "fail";
   const allOk = activeRows.every((row) => rows[row]?.status === "ok");
+  const emptyPolicy =
+    policy !== null && (policy as { Statement?: unknown[] }).Statement?.length === 0;
 
   return (
     <div className="flex flex-col gap-5">
       <header>
         <h1 className="text-xl font-semibold">Permissions &amp; verify</h1>
         <p className="mt-1 text-sm text-ink-soft">
-          Attach this least-privilege policy to your IAM user or role, then verify with real
-          calls: a one-token Nova chat, one embedding, and your storage choices.
+          {emptyPolicy
+            ? "Your choices need no AWS permissions; verify them with real calls below."
+            : "Attach this least-privilege policy to your IAM user or role, then verify " +
+              "with real calls against your model and storage choices."}
         </p>
       </header>
 
-      <Card>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-semibold">
-            IAM policy, pre-filled for account {state.accountId}
-            {state.artifactStore === "s3" && ` and bucket ${state.bucket}`}
-            {state.reranker === "aws" && ", including Amazon Rerank"}
-            {state.store === "opensearch" && ", including OpenSearch domain deploy"}
-          </span>
-          <Button kind="ghost" onClick={copy}>{copied ? "Copied ✓" : "Copy JSON"}</Button>
-        </div>
-        <pre className="mono max-h-72 overflow-auto rounded-lg border border-line bg-lighttable p-4 text-xs leading-relaxed text-ink">
-          {policy ? JSON.stringify(policy, null, 2) : "…"}
-        </pre>
-        <p className="mt-2 text-xs text-ink-soft">
-          IAM console → your user or role → Add permissions → Create inline policy → JSON.
-        </p>
-      </Card>
+      {emptyPolicy ? (
+        <Card>
+          <p className="text-sm">
+            <span className="font-semibold">No IAM policy needed.</span>{" "}
+            OpenAI models, local artifacts, and your storage choices run without
+            any AWS permissions.
+          </p>
+        </Card>
+      ) : (
+        <Card>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-semibold">
+              IAM policy, pre-filled for account {state.accountId}
+              {state.artifactStore === "s3" && ` and bucket ${state.bucket}`}
+              {state.reranker === "aws" && ", including Amazon Rerank"}
+              {state.store === "opensearch" && ", including OpenSearch domain deploy"}
+            </span>
+            <Button kind="ghost" onClick={copy}>{copied ? "Copied ✓" : "Copy JSON"}</Button>
+          </div>
+          <pre className="mono max-h-72 overflow-auto rounded-lg border border-line bg-lighttable p-4 text-xs leading-relaxed text-ink">
+            {policy ? JSON.stringify(policy, null, 2) : "…"}
+          </pre>
+          <p className="mt-2 text-xs text-ink-soft">
+            IAM console → your user or role → Add permissions → Create inline policy → JSON.
+          </p>
+        </Card>
+      )}
 
       <Card className="flex flex-col gap-3">
         {activeRows.map((row) => {
@@ -147,6 +177,17 @@ export function Step3Permissions({
         </Button>
       </Card>
 
+      {openaiFailed && (
+        <Card className="border-fail bg-fail-soft">
+          <p className="text-sm">
+            <span className="font-semibold">OpenAI check failed.</span>{" "}
+            {rows[OPENAI_ROW]?.result?.detail} — go back to Choices and re-enter the key.
+          </p>
+          <Button kind="ghost" className="mt-2" onClick={onBack}>
+            ← Back to Choices
+          </Button>
+        </Card>
+      )}
       {worstKind === "credentials" && (
         <Card className="border-fail bg-fail-soft">
           <p className="text-sm">

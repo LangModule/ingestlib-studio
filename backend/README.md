@@ -25,8 +25,9 @@ app/
 │                     configuration lives. Provides require_configured, the
 │                     HTTP 409 gate on every router except setup.
 ├── setup/            The wizard and the health checks. Never imports ingestlib.
-│   ├── checks.py     Real-call probes: STS, Bedrock, S3, the eight vector
-│   │                 stores, the rerankers, the OCR server, LibreOffice.
+│   ├── checks.py     Real-call probes: STS, Bedrock, OpenAI, S3, the eight
+│   │                 vector stores, the rerankers, the OCR server,
+│   │                 LibreOffice.
 │   ├── policy.py     Builds the least-privilege IAM policy, pre-filled.
 │   ├── writer.py     Writes config.yaml (answers only) and .env (mode 600).
 │   │                 The wizard and the Settings page share it.
@@ -37,16 +38,17 @@ app/
 ├── pipeline/         In-memory jobs around the library's pipeline.
 │   ├── jobs.py       The job base (event log, synchronous emit, SSE
 │   │                 streaming) and the bounded registries.
-│   ├── tryit.py      parse → classify → split entirely in memory. A try
-│   │                 run never writes to S3 or the vector store.
+│   ├── tryit.py      parse → classify → split entirely in memory. A try run
+│   │                 never writes to the artifact store or the vector store.
 │   ├── ingest.py     The committed run through aingest(). The library
 │   │                 persists everything; the studio relays stage events.
-│   └── backfill.py   Rebuilds the configured vector store from the S3
+│   └── backfill.py   Rebuilds the configured vector store from the stored
 │                     split artifacts. No re-parse, no OCR server.
 ├── documents/        Stored documents become UI views.
 │   ├── shaping.py    Library models to view models. Pure transformation.
-│   ├── registry.py   Reads the S3 artifact registry, caches shaped views,
-│   │                 presigns image URLs, and deletes everywhere.
+│   ├── registry.py   Reads the artifact registry, caches shaped views,
+│   │                 serves images (presigned S3 URLs or local bytes), and
+│   │                 deletes everywhere.
 │   └── schemas.py    The view models the frontend renders.
 └── routes/           One thin router per page; handlers delegate.
     ├── setup.py      /api/setup: status, health, checks, iam-policy, complete.
@@ -72,11 +74,13 @@ app/
   backfill runs by their target store, so a repeated request joins the
   running job. All of them stream progress over SSE with full replay for
   late subscribers and expire after they finish. A restart clears them,
-  which is acceptable: S3 self-heals, and an interrupted ingest is retried
-  because the library treats an incomplete run as not ingested.
-- **S3 is the source of truth.** The vector store is a derived, rebuildable
-  index; backfill proves it. Image bytes never pass through this process
-  for stored documents, because the routes redirect to presigned S3 URLs.
+  which is acceptable: the artifact store self-heals, and an interrupted
+  ingest is retried because the library treats an incomplete run as not
+  ingested.
+- **The artifact store is the source of truth.** The vector store is a
+  derived, rebuildable index; backfill proves it. On S3, image bytes never
+  pass through this process because the routes redirect to presigned URLs;
+  a local artifact store streams them directly.
 - **Blocking calls stay off the event loop.** boto3 and the store SDKs are
   synchronous, so every handler that touches them goes through
   asyncio.to_thread.

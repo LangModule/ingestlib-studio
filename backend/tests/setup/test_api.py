@@ -163,6 +163,38 @@ def test_iam_policy_omits_s3_statements_for_local_artifacts(client):
     assert "IngestlibBedrock" in sids
 
 
+def test_iam_policy_omits_bedrock_statement_for_openai(client):
+    policy = build_iam_policy("123456789012", "ingestlib", "jina", ai_provider="openai")
+    sids = [s["Sid"] for s in policy["Statement"]]
+    assert "IngestlibBedrock" not in sids
+    assert "IngestlibBucket" in sids, "S3 artifacts still need their statements"
+
+
+def test_iam_policy_can_be_empty_for_a_zero_aws_choice_set(client):
+    policy = build_iam_policy(
+        "123456789012", "ingestlib", "none", artifact_store="local", ai_provider="openai"
+    )
+    assert policy["Statement"] == []
+
+
+def test_check_openai_without_a_key_fails_before_the_network(client):
+    body = client.post("/api/setup/check/openai", json={"api_key": ""}).json()
+    assert body["ok"] is False and body["kind"] == "credentials"
+
+
+def test_complete_writes_openai_providers_and_defaults_stay_unwritten(client):
+    answers = {**_ANSWERS, "ai_provider": "openai",
+               "secrets": {"JINA_API_KEY": "j", "OPENAI_API_KEY": "sk-test"}}
+    client.post("/api/setup/complete", json=answers)
+    yaml_text = bootstrap.config_path().read_text()
+    assert "llm_provider: openai" in yaml_text
+    assert "embedding_provider: openai" in yaml_text
+    assert bootstrap.env_path().read_text().count("OPENAI_API_KEY=sk-test") == 1
+
+    client.post("/api/setup/complete", json=_ANSWERS)  # bedrock is the default
+    assert "provider" not in bootstrap.config_path().read_text()
+
+
 def test_complete_rejects_unknown_secret_keys(client):
     answers = {**_ANSWERS, "secrets": {"EVIL_KEY": "x"}}
     assert client.post("/api/setup/complete", json=answers).status_code == 422

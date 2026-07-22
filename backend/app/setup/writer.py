@@ -31,6 +31,12 @@ def render_config_yaml(answers: CompleteRequest) -> str:
     ]
     if answers.artifact_store != "s3":  # the default stays unwritten
         lines += ["", f"artifact_store: {answers.artifact_store}"]
+    if answers.ai_provider != "bedrock":  # the default stays unwritten
+        lines += [
+            "",
+            f"llm_provider: {answers.ai_provider}",
+            f"embedding_provider: {answers.ai_provider}",
+        ]
     if answers.bucket != f"ingestlib-{answers.aws.account_id}":  # the default stays unwritten
         lines += ["", "s3:", f"  bucket: {answers.bucket}"]
     paddle = answers.paddle_vl

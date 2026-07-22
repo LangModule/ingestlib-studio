@@ -24,13 +24,14 @@ export function StepFinish({
   const [writing, setWriting] = useState(false);
   const [done, setDone] = useState(false);
 
-  // Write only the secrets the choices actually need. A Jina key typed
-  // before switching to another reranker must not end up in .env.
+  // Write only the secrets the choices actually need. A key typed before
+  // switching away from its choice must not end up in .env.
   const secrets: Record<string, string> = {};
   for (const [key, value] of Object.entries(state.secrets)) {
     if (value) secrets[key] = value;
   }
   if (state.reranker !== "jina") delete secrets.JINA_API_KEY;
+  if (state.aiProvider !== "openai") delete secrets.OPENAI_API_KEY;
 
   const complete = async () => {
     setWriting(true);
@@ -41,6 +42,7 @@ export function StepFinish({
       vector_store: state.store,
       reranker: state.reranker,
       artifact_store: state.artifactStore,
+      ai_provider: state.aiProvider,
       secrets,
     };
     if (state.ocrUrl !== DEFAULT_OCR.url || state.ocrBackend !== DEFAULT_OCR.backend) {
@@ -59,6 +61,9 @@ export function StepFinish({
 
   const rows: [string, string][] = [
     ["AWS profile", `${state.profile} · ${state.region} · ${state.accountId}`],
+    state.aiProvider === "bedrock"
+      ? ["AI models", "AWS Bedrock · Nova LLM + embeddings"]
+      : ["AI models", "OpenAI · gpt-5-mini + text-embedding-3-small"],
     state.artifactStore === "s3"
       ? ["Artifact store", `S3 · ${state.bucket}`]
       : ["Artifact store", "local · ~/.ingestlib/artifacts"],

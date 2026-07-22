@@ -5,8 +5,8 @@ import type { CheckResult, SetupStatus } from "../api/types";
    from the polled status; cloud rows fill in when a full check runs. */
 
 const STACK_ROWS: { key: string; label: string; needs: string }[] = [
-  { key: "bedrock", label: "Bedrock", needs: "Nova LLM and embeddings via your AWS profile" },
-  { key: "s3", label: "S3 artifact store", needs: "holds parsed pages, results, and sources" },
+  { key: "llm", label: "AI models", needs: "LLM and embeddings: Bedrock Nova or OpenAI GPT-5" },
+  { key: "artifacts", label: "Artifact store", needs: "holds parsed pages, results, and sources" },
   { key: "vectordb", label: "Vector database", needs: "stores and searches chunk embeddings" },
   { key: "reranker", label: "Reranker", needs: "orders retrieval hits by relevance" },
   { key: "ocr", label: "OCR server", needs: "PaddleOCR-VL; required by Try it and Ingest" },

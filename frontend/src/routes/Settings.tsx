@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, followStageEvents } from "../api/client";
 import type {
+  AiProvider,
   ArtifactStore,
   BackfillStatus,
   CheckResult,
@@ -14,7 +15,13 @@ import type {
 import { StackChecklist } from "../components/StackChecklist";
 import { StageStepper } from "../components/pipeline/StageStepper";
 import { OpensearchDeployHint } from "../components/setup/OpensearchDeployHint";
-import { ARTIFACT_STORES, ChoiceCard, RERANKERS, STORES } from "../components/setup/Step2Choices";
+import {
+  AI_PROVIDERS,
+  ARTIFACT_STORES,
+  ChoiceCard,
+  RERANKERS,
+  STORES,
+} from "../components/setup/Step2Choices";
 import { Button, Card, Field, Select, TextInput } from "../components/setup/ui";
 
 /* Settings: the effective configuration, edits applied without a restart,
@@ -23,6 +30,7 @@ import { Button, Card, Field, Select, TextInput } from "../components/setup/ui";
    rebuild the new one from the stored split artifacts. */
 
 interface FormState {
+  aiProvider: AiProvider;
   artifactStore: ArtifactStore;
   bucket: string;
   store: VectorStore;
@@ -60,6 +68,7 @@ export default function Settings() {
     const fresh = await api.settingsGet();
     setView(fresh);
     setForm({
+      aiProvider: fresh.ai_provider,
       artifactStore: fresh.artifact_store,
       bucket: fresh.bucket,
       store: fresh.vector_store,
@@ -101,6 +110,7 @@ export default function Settings() {
       vector_store: form.store,
       reranker: form.reranker,
       artifact_store: form.artifactStore,
+      ai_provider: form.aiProvider,
       secrets: Object.fromEntries(
         Object.entries(form.secrets).filter(([, value]) => value),
       ),
@@ -197,6 +207,9 @@ export default function Settings() {
             {(
               [
                 ["AWS", `${view.profile} · ${view.region} · ${view.account_id}`],
+                view.ai_provider === "bedrock"
+                  ? ["AI models", "AWS Bedrock · Nova LLM + embeddings"]
+                  : ["AI models", "OpenAI · gpt-5-mini + text-embedding-3-small"],
                 view.artifact_store === "s3"
                   ? ["Artifact store", `S3 · ${view.bucket}`]
                   : ["Artifact store", "local · ~/.ingestlib/artifacts"],
@@ -229,6 +242,44 @@ export default function Settings() {
       {view.editable && (
         <section className="flex flex-col gap-6">
           <h2 className="text-sm font-semibold">Edit</h2>
+
+          <div>
+            <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">
+              AI models
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {AI_PROVIDERS.map((option) => (
+                <ChoiceCard
+                  key={option.id}
+                  selected={form.aiProvider === option.id}
+                  title={option.title}
+                  blurb={option.blurb}
+                  onSelect={() => setForm({ ...form, aiProvider: option.id })}
+                />
+              ))}
+            </div>
+            {form.aiProvider === "openai" && (
+              <Card className="mt-3">
+                <Field label="OpenAI API key" hint="platform.openai.com/api-keys">
+                  <TextInput
+                    type="password"
+                    className="mono"
+                    placeholder={secretPlaceholder("OPENAI_API_KEY", "sk-…")}
+                    value={form.secrets.OPENAI_API_KEY ?? ""}
+                    onChange={(e) => setSecret("OPENAI_API_KEY", e.target.value)}
+                  />
+                </Field>
+              </Card>
+            )}
+            {form.aiProvider !== view.ai_provider && (
+              <p className="mt-2 text-xs text-amber">
+                Switching the provider changes the embedding space: vectors written by the
+                old provider stop matching new queries. Pair the switch with a fresh vector
+                store (a different store, or a new database file/collection), then run
+                Backfill below to re-embed every stored document into it.
+              </p>
+            )}
+          </div>
 
           <div>
             <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">

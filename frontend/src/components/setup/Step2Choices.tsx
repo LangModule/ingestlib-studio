@@ -1,4 +1,4 @@
-import type { Reranker, VectorStore } from "../../api/types";
+import type { AiProvider, Reranker, VectorStore } from "../../api/types";
 import type { Patch, WizardState } from "../../routes/Setup";
 import { OpensearchDeployHint } from "./OpensearchDeployHint";
 import { Button, Card, Field, TextInput } from "./ui";
@@ -123,6 +123,19 @@ export const STORES: StoreOption[] = [
   },
 ];
 
+export const AI_PROVIDERS: { id: AiProvider; title: string; blurb: string }[] = [
+  {
+    id: "bedrock",
+    title: "AWS Bedrock",
+    blurb: "Nova LLM and multimodal embeddings via your AWS profile. ~$0.002/page; no extra account.",
+  },
+  {
+    id: "openai",
+    title: "OpenAI",
+    blurb: "GPT-5 mini and text-embedding-3 with one API key. Bedrock stays out of the pipeline.",
+  },
+];
+
 export const ARTIFACT_STORES: { id: "s3" | "local"; title: string; blurb: string }[] = [
   {
     id: "s3",
@@ -200,6 +213,7 @@ export function Step2Choices({
     patch({ secrets: { ...state.secrets, [key]: value } });
 
   const jinaKeyMissing = state.reranker === "jina" && !state.secrets.JINA_API_KEY;
+  const openaiKeyMissing = state.aiProvider === "openai" && !state.secrets.OPENAI_API_KEY;
   const storeKeyMissing = store.secretFields.some(
     (field) => !field.optional && !state.secrets[field.key],
   );
@@ -209,9 +223,37 @@ export function Step2Choices({
       <header>
         <h1 className="text-xl font-semibold">Choices</h1>
         <p className="mt-1 text-sm text-ink-soft">
-          Three decisions. Nothing is created now; everything bootstraps on first use.
+          Four decisions. Nothing is created now; everything bootstraps on first use.
         </p>
       </header>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">AI models</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {AI_PROVIDERS.map((option) => (
+            <ChoiceCard
+              key={option.id}
+              selected={state.aiProvider === option.id}
+              title={option.title}
+              blurb={option.blurb}
+              onSelect={() => patch({ aiProvider: option.id })}
+            />
+          ))}
+        </div>
+        {state.aiProvider === "openai" && (
+          <Card className="mt-3">
+            <Field label="OpenAI API key" hint="platform.openai.com/api-keys">
+              <TextInput
+                type="password"
+                className="mono"
+                placeholder="sk-…"
+                value={state.secrets.OPENAI_API_KEY ?? ""}
+                onChange={(e) => setSecret("OPENAI_API_KEY", e.target.value)}
+              />
+            </Field>
+          </Card>
+        )}
+      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">Artifact store</h2>
@@ -317,7 +359,10 @@ export function Step2Choices({
         <Button
           onClick={onNext}
           disabled={
-            (state.artifactStore === "s3" && !state.bucket) || jinaKeyMissing || storeKeyMissing
+            (state.artifactStore === "s3" && !state.bucket) ||
+            jinaKeyMissing ||
+            openaiKeyMissing ||
+            storeKeyMissing
           }
         >
           Next: Permissions →
