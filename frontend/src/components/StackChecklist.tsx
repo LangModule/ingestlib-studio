@@ -1,4 +1,5 @@
 import type { CheckResult, SetupStatus } from "../api/types";
+import { IconCheck, IconX } from "./icons";
 
 /* The six things the pipeline depends on, shared by the header status
    popover and the Settings page. Local rows (OCR, LibreOffice) refresh
@@ -14,9 +15,18 @@ const STACK_ROWS: { key: string; label: string; needs: string }[] = [
 ];
 
 function LocalBadge({ value }: { value: string | undefined }) {
-  if (value === "ok") return <span className="text-xs font-semibold text-ok">✓ ok</span>;
+  if (value === "ok")
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-ok">
+        <IconCheck className="h-3 w-3 shrink-0" /> ok
+      </span>
+    );
   if (value === undefined) return <span className="text-xs text-ink-soft">—</span>;
-  return <span className="text-xs font-semibold text-fail">✗ {value}</span>;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-fail">
+      <IconX className="h-3 w-3 shrink-0" /> {value}
+    </span>
+  );
 }
 
 export function StackChecklist({
@@ -40,11 +50,16 @@ export function StackChecklist({
             <span className="max-w-[14rem] text-right">
               {result ? (
                 <span
-                  className={`check-in inline-block text-xs font-semibold ${
+                  className={`check-in inline-flex items-center gap-1 text-xs font-semibold ${
                     result.ok ? "text-ok" : "text-fail"
                   }`}
                 >
-                  {result.ok ? "✓" : "✗"} {result.detail}
+                  {result.ok ? (
+                    <IconCheck className="h-3 w-3 shrink-0" />
+                  ) : (
+                    <IconX className="h-3 w-3 shrink-0" />
+                  )}{" "}
+                  {result.detail}
                 </span>
               ) : isLocal ? (
                 <LocalBadge value={status.checks[row.key]} />

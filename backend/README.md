@@ -29,7 +29,9 @@ app/
 │   │                 vector stores, the rerankers, the OCR server,
 │   │                 LibreOffice.
 │   ├── policy.py     Builds the least-privilege IAM policy, pre-filled.
-│   ├── writer.py     Writes config.yaml (answers only) and .env (mode 600).
+│   ├── writer.py     Writes config.yaml (answers only), .env (mode 600), and
+│   │                 rules.yaml (content rules; deleted when cleared, and a
+│   │                 pre-existing file survives wizard re-runs untouched).
 │   │                 The wizard and the Settings page share it.
 │   ├── runtime.py    Reads the active configuration the way the library
 │   │                 would, resolving the same defaults.
@@ -40,6 +42,7 @@ app/
 │   │                 streaming) and the bounded registries.
 │   ├── tryit.py      parse → classify → split entirely in memory. A try run
 │   │                 never writes to the artifact store or the vector store.
+│   │                 Honors per-run rule overrides; they shape the job key.
 │   ├── ingest.py     The committed run through aingest(). The library
 │   │                 persists everything; the studio relays stage events.
 │   └── backfill.py   Rebuilds the configured vector store from the stored
@@ -56,7 +59,7 @@ app/
     ├── ingest.py     /api/ingest: run, events, from-try promotion.
     ├── documents.py  /api/documents: list, view, image redirects, delete.
     ├── playground.py /api/retrieve: cited hits for a question.
-    ├── settings.py   /api/settings: view, edit, backfill.
+    ├── settings.py   /api/settings: view, edit, content rules, backfill.
     ├── sse.py        The event-stream response both job routers share.
     └── uploads.py    The upload validation both job routers share.
 ```

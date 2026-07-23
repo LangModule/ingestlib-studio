@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { DocumentSummary } from "../api/types";
 import { BrandArt } from "../components/BrandArt";
+import { IconSparkle } from "../components/icons";
 import { Card } from "../components/setup/ui";
 
 /* The library: every document committed to the stack, read from the S3
@@ -54,7 +55,7 @@ export default function Library() {
       <div className="mx-auto max-w-6xl px-6 py-24">
         <BrandArt />
         <div className="mx-auto max-w-md text-center">
-          <p className="text-2xl text-amber/70" aria-hidden>✦</p>
+          <IconSparkle className="mx-auto h-7 w-7 text-amber/70" />
           <h1 className="mt-3 text-lg font-semibold">No documents yet</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink-soft">
             Try it runs the pipeline on a file without storing anything, and Ingest

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { BrandArt } from "../components/BrandArt";
+import { IconSparkle } from "../components/icons";
 import type { AiProvider, ArtifactStore, Reranker, VectorStore } from "../api/types";
 import { StepRail } from "../components/setup/StepRail";
 import { Step1Aws } from "../components/setup/Step1Aws";
@@ -92,7 +93,7 @@ export default function Setup() {
             self-hosted document intelligence for RAG
           </p>
         </div>
-        <span aria-hidden className="pt-1 text-base text-amber/70">✦</span>
+        <IconSparkle className="mt-1 h-5 w-5 text-amber/70" />
       </header>
       <div className="flex gap-10">
         <aside className="w-44 shrink-0 pt-2">

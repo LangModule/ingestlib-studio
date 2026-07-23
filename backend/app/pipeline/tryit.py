@@ -59,10 +59,20 @@ async def run(job: TryJob) -> None:
             )
         job.emit(stage, "done", seconds=job.durations[stage])
 
+        # Per-run rule overrides: explicit arguments beat any rules.yaml
+        # preset (the library guarantees the precedence). No override →
+        # None arguments → the preset (or open-ended) applies as usual.
+        rules = job.rules
+
         stage = "classify"
         job.emit(stage, "start")
         started = time.perf_counter()
-        job.classify_result = await aclassify(job.parse_result)
+        job.classify_result = await aclassify(
+            job.parse_result,
+            categories=dict(rules.classify.rules) if rules and rules.classify.rules else None,
+            target_pages=(rules.classify.target_pages or None) if rules else None,
+            max_pages=(rules.classify.max_pages or None) if rules else None,
+        )
         job.durations[stage] = round(time.perf_counter() - started, 2)
         job.emit(stage, "done", seconds=job.durations[stage])
 
@@ -70,7 +80,10 @@ async def run(job: TryJob) -> None:
         job.emit(stage, "start")
         started = time.perf_counter()
         job.split_result = await asplit(
-            job.parse_result, category=job.classify_result.category
+            job.parse_result,
+            category=job.classify_result.category,
+            vocabulary=dict(rules.split.categories) if rules and rules.split.categories else None,
+            unmatched=(rules.split.unmatched if rules and rules.split.categories else None),
         )
         job.durations[stage] = round(time.perf_counter() - started, 2)
         job.emit(stage, "done", seconds=job.durations[stage])

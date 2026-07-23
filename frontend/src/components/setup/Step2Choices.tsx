@@ -1,5 +1,6 @@
 import type { AiProvider, Reranker, VectorStore } from "../../api/types";
 import type { Patch, WizardState } from "../../routes/Setup";
+import { IconCheck } from "../icons";
 import { OpensearchDeployHint } from "./OpensearchDeployHint";
 import { Button, Card, Field, TextInput } from "./ui";
 
@@ -189,7 +190,9 @@ export function ChoiceCard({
       } bg-card`}
     >
       {selected && (
-        <span className="check-in absolute top-3 right-3 text-xs font-bold text-accent">✓</span>
+        <span className="check-in absolute top-3 right-3 text-accent">
+          <IconCheck />
+        </span>
       )}
       <span className="block text-sm font-semibold">{title}</span>
       <span className="mt-1 block text-xs leading-relaxed text-ink-soft">{blurb}</span>

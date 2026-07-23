@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, followStageEvents } from "../api/client";
-import type { IngestJobResponse, StageEvent } from "../api/types";
+import type { IngestJobResponse, RulesConfig, StageEvent } from "../api/types";
 import { BrandArt } from "../components/BrandArt";
 import { Dropzone } from "../components/Dropzone";
 import { StageStepper } from "../components/pipeline/StageStepper";
+import { RulesEditor, rulesAreEmpty } from "../components/rules/RulesEditor";
 import { Button, Card } from "../components/setup/ui";
 
 /* Ingest: commit a document to the stack. The library persists parsed pages
@@ -23,6 +24,7 @@ type Phase =
 export default function Ingest() {
   const [phase, setPhase] = useState<Phase>({ name: "idle" });
   const [ocrOnline, setOcrOnline] = useState<boolean | null>(null);
+  const [rules, setRules] = useState<RulesConfig | null>(null);
   const source = useRef<EventSource | null>(null);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -51,6 +53,7 @@ export default function Ingest() {
 
   useEffect(() => {
     api.status().then((status) => setOcrOnline(status.checks.ocr === "ok"));
+    api.rulesGet().then((view) => setRules(view.rules)).catch(() => setRules(null));
     // Runs once on mount. Try it lands here with ?job= after promoting a
     // reviewed file; resume that job instead of starting from the dropzone.
     const jobId = params.get("job");
@@ -147,14 +150,14 @@ export default function Ingest() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
+    <div className={`py-12 ${phase.name === "idle" ? "w-full px-10" : "mx-auto max-w-2xl px-6"}`}>
       <BrandArt />
       <header className="mb-6">
         <h1 className="text-xl font-semibold">Ingest</h1>
         <p className="mt-1 text-sm text-ink-soft">
-          Commits a document to your stack: parsed pages and results to S3, chunks and
-          embeddings to your vector store. Re-ingesting the same file is skipped
-          automatically.
+          Commits a document to your stack: parsed pages and results to the artifact
+          store, chunks and embeddings to your vector store. Re-ingesting the same
+          file is skipped automatically.
         </p>
       </header>
 
@@ -193,11 +196,42 @@ export default function Ingest() {
       )}
 
       {phase.name === "idle" && (
-        <Dropzone
-          hint="PDF · DOCX · PPTX · no page limit"
-          disabled={ocrOnline === false}
-          onFile={uploadFile}
-        />
+        <div className="grid items-start gap-8 lg:grid-cols-[2fr_3fr] lg:gap-0">
+          <section className="flex flex-col gap-3 lg:sticky lg:top-8 lg:pr-8">
+            <h2 className="text-sm font-semibold">Document</h2>
+            <Dropzone
+              hint="PDF · DOCX · PPTX · no page limit"
+              disabled={ocrOnline === false}
+              onFile={uploadFile}
+            />
+            <p className="text-xs text-ink-soft">
+              Five stages with live progress: parse → classify → split → embed →
+              upsert. Every stage is persisted, so a failed run resumes instead
+              of re-doing finished work.
+            </p>
+          </section>
+          <section className="flex flex-col gap-3 lg:border-l lg:border-line lg:pl-8">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold">Configuration</h2>
+              <Link className="text-xs text-ink-soft underline hover:text-ink" to="/settings">
+                edit in Settings
+              </Link>
+            </div>
+            <p className="text-xs text-ink-soft">
+              {rules && rulesAreEmpty(rules)
+                ? "No saved rules — classify and split run open-ended. Ingest always follows the saved rules; per-run experiments live on Try it."
+                : "Ingest always follows your saved rules, shown read-only below. Per-run experiments live on Try it."}
+            </p>
+            {rules && (
+              <RulesEditor
+                key={JSON.stringify(rules)}
+                initial={rules}
+                disabled
+                onChange={() => {}}
+              />
+            )}
+          </section>
+        </div>
       )}
     </div>
   );

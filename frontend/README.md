@@ -26,6 +26,9 @@ src/
 │   ├── BrandArt.tsx      The cover artwork as an inline SVG: a document
 │   │                     dissolving into cubes and particles. Decorative,
 │   │                     fixed bottom-right, never behind results.
+│   ├── icons.tsx         The inline SVG icon set (check, x, trash,
+│   │                     sparkle). Standalone marks are SVG; checkmarks
+│   │                     inside sentences stay text.
 │   ├── StatusPopover.tsx The header dot and its stack-status panel.
 │   ├── StackChecklist.tsx The six-check list the popover and Settings share.
 │   ├── Dropzone.tsx      The upload target Try it and Ingest share.
@@ -33,6 +36,13 @@ src/
 │   │   └── StageStepper.tsx  Live progress from stage events. Try it
 │   │                         passes three stages, Ingest five, backfill
 │   │                         one per document.
+│   ├── rules/
+│   │   └── RulesEditor.tsx   The content-rules editor: classification
+│   │                         rules and split categories as bordered
+│   │                         tables, plus the unmatched-pages policy.
+│   │                         Settings saves (side-by-side via `columns`),
+│   │                         Try it overrides per run, Ingest shows it
+│   │                         read-only. Exports rulesEqual/rulesAreEmpty.
 │   ├── review/
 │   │   ├── ReviewShell.tsx   The split-pane viewer: light table left,
 │   │   │                     pipeline tabs right. Used by Try it and the
@@ -78,5 +88,11 @@ Animations are subtle fade-rises and respect prefers-reduced-motion.
   on the light table and the reverse, in both the Parsed and Chunks tabs.
   Playground click-throughs arrive with ?page= and ?regions= and land with
   the cited regions pre-lit.
+- **The idle partition.** Try it, Ingest, and Playground open full-width
+  (`w-full px-10`) as a two-column grid split by a vertical divider: the
+  input on the left (dropzone or question), what the run will use on the
+  right (the rules panel, or the library on Playground). Running, failed,
+  and reading states narrow back to a centered column. Settings uses the
+  same full-width idea as equal-height panel rows.
 - **Nothing decorative behind results.** BrandArt renders on empty and
   input states only.

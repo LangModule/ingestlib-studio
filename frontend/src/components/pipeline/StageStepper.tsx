@@ -1,4 +1,5 @@
 import type { StageEvent } from "../../api/types";
+import { IconCheck, IconX } from "../icons";
 
 /* Live pipeline progress driven by the SSE event stream. Try it passes three
    stages; Ingest will pass five and reuse this unchanged. */
@@ -42,8 +43,8 @@ export function StageStepper({ stages, events }: { stages: string[]; events: Sta
                       : "border-line text-ink-soft"
               }`}
             >
-              {state === "done" && "✓"}
-              {state === "failed" && "✗"}
+              {state === "done" && <IconCheck />}
+              {state === "failed" && <IconX />}
               {state === "running" && (
                 <span className="h-3 w-3 animate-spin rounded-full border border-accent border-t-transparent" />
               )}

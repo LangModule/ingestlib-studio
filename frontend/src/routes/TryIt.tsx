@@ -1,16 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, followStageEvents } from "../api/client";
-import type { StageEvent, TryJobResponse } from "../api/types";
+import type { RulesConfig, StageEvent, TryJobResponse } from "../api/types";
 import { BrandArt } from "../components/BrandArt";
 import { Dropzone } from "../components/Dropzone";
 import { StageStepper } from "../components/pipeline/StageStepper";
 import { ReviewShell } from "../components/review/ReviewShell";
+import { RulesEditor, rulesEqual } from "../components/rules/RulesEditor";
 import { Button, Card } from "../components/setup/ui";
 
 /* Try it: run the pipeline on a file without storing anything, then inspect
    the result in the review shell. "Looks right → Ingest it" promotes the
-   reviewed file into a committed run on the Ingest page. */
+   reviewed file into a committed run on the Ingest page.
+
+   The rules panel starts from the SAVED rules, so an untouched run behaves
+   exactly like Ingest will. Edits become a per-run override (sent with the
+   upload, never saved) — the backend keys the job on content + rules, so the
+   same file with different rules is a fresh run, not a cached one. */
 
 const STAGES = ["parse", "classify", "split"];
 
@@ -24,13 +30,27 @@ export default function TryIt() {
   const [phase, setPhase] = useState<Phase>({ name: "idle" });
   const [promoting, setPromoting] = useState(false);
   const [ocrOnline, setOcrOnline] = useState<boolean | null>(null);
+  const [savedRules, setSavedRules] = useState<RulesConfig | null>(null);
+  const [rulesEditable, setRulesEditable] = useState(false);
+  const [draft, setDraft] = useState<RulesConfig | null>(null);
+  const [editorKey, setEditorKey] = useState(0);
+  const [usedOverrides, setUsedOverrides] = useState(false);
   const source = useRef<EventSource | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     api.status().then((status) => setOcrOnline(status.checks.ocr === "ok"));
+    api.rulesGet().then((view) => {
+      setSavedRules(view.rules);
+      setRulesEditable(view.editable);
+      setDraft(view.rules);
+      setEditorKey((k) => k + 1);
+    });
     return () => source.current?.close();
   }, []);
+
+  const modified =
+    draft !== null && savedRules !== null && !rulesEqual(draft, savedRules);
 
   const follow = (job: TryJobResponse) => {
     source.current = followStageEvents(
@@ -55,7 +75,10 @@ export default function TryIt() {
 
   const uploadFile = async (file: File) => {
     try {
-      const job = await api.tryStart(file);
+      // An untouched panel sends nothing: the saved preset applies
+      // server-side, so the try matches what Ingest would do.
+      setUsedOverrides(modified);
+      const job = await api.tryStart(file, modified && draft ? draft : undefined);
       // Re-uploading a file that already finished skips straight to review.
       if (job.status === "done") setPhase({ name: "done", job });
       else if (job.status === "failed") setPhase({ name: "failed", error: job.error ?? "failed" });
@@ -89,11 +112,20 @@ export default function TryIt() {
         <ReviewShell
           document={phase.job.result}
           footer={
-            <div className="flex justify-between border-t border-line pt-4">
-              <Button kind="ghost" onClick={discard}>Discard</Button>
-              <Button onClick={ingestIt} disabled={promoting}>
-                {promoting ? "Starting…" : "Looks right → Ingest it"}
-              </Button>
+            <div className="flex flex-col gap-2 border-t border-line pt-4">
+              {usedOverrides && (
+                <p className="text-xs text-amber">
+                  This run used modified rules. Ingest follows your <b>saved</b>{" "}
+                  rules — save the overrides in the rules panel first to keep
+                  this behavior.
+                </p>
+              )}
+              <div className="flex justify-between">
+                <Button kind="ghost" onClick={discard}>Discard</Button>
+                <Button onClick={ingestIt} disabled={promoting}>
+                  {promoting ? "Starting…" : "Looks right → Ingest it"}
+                </Button>
+              </div>
             </div>
           }
         />
@@ -102,13 +134,13 @@ export default function TryIt() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
+    <div className={`py-12 ${phase.name === "idle" ? "w-full px-10" : "mx-auto max-w-2xl px-6"}`}>
       <BrandArt />
       <header className="mb-6">
         <h1 className="text-xl font-semibold">Try it</h1>
         <p className="mt-1 text-sm text-ink-soft">
           Runs parse, classify, and split on your file entirely in memory. Nothing is
-          written to S3 or the vector store; documents up to 50 pages.
+          written to the artifact store or the vector store; documents up to 50 pages.
         </p>
       </header>
 
@@ -147,11 +179,67 @@ export default function TryIt() {
       )}
 
       {phase.name === "idle" && (
-        <Dropzone
-          hint="PDF · DOCX · PPTX, up to 50 pages"
-          disabled={ocrOnline === false}
-          onFile={uploadFile}
-        />
+        <div className="grid items-start gap-8 lg:grid-cols-[2fr_3fr] lg:gap-0">
+          <section className="flex flex-col gap-3 lg:sticky lg:top-8 lg:pr-8">
+            <h2 className="text-sm font-semibold">Document</h2>
+            <Dropzone
+              hint="PDF · DOCX · PPTX, up to 50 pages"
+              disabled={ocrOnline === false}
+              onFile={uploadFile}
+            />
+            <p className="text-xs text-ink-soft">
+              {modified
+                ? "This run uses the modified rules on the left."
+                : "This run uses your saved rules (or open-ended when none are saved)."}
+            </p>
+          </section>
+          <section className="flex flex-col gap-3 lg:border-l lg:border-line lg:pl-8">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold">
+                Configuration
+                {modified && (
+                  <span className="ml-2 rounded-md bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
+                    modified — this run only
+                  </span>
+                )}
+              </h2>
+              {modified && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    kind="ghost"
+                    onClick={() => {
+                      setDraft(savedRules);
+                      setEditorKey((k) => k + 1);
+                    }}
+                  >
+                    Reset to saved
+                  </Button>
+                  {rulesEditable && draft && (
+                    <Button
+                      kind="ghost"
+                      onClick={async () => {
+                        const view = await api.rulesUpdate(draft);
+                        setSavedRules(view.rules);
+                        setDraft(view.rules);
+                        setEditorKey((k) => k + 1);
+                      }}
+                    >
+                      Save as default
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-ink-soft">
+              Starts from your saved rules, so an untouched run behaves exactly
+              like Ingest. Edits apply to this run only — to go open-ended
+              despite saved rules, clear them in Settings.
+            </p>
+            {draft && (
+              <RulesEditor key={editorKey} initial={draft} onChange={setDraft} />
+            )}
+          </section>
+        </div>
       )}
     </div>
   );

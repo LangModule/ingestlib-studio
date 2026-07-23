@@ -1,3 +1,5 @@
+import { IconCheck } from "../icons";
+
 const STEPS = ["Connect AWS", "Choices", "Permissions", "Machine", "Finish"];
 
 export function StepRail({ current }: { current: number }) {
@@ -17,7 +19,7 @@ export function StepRail({ current }: { current: number }) {
                     : "border-line bg-card text-ink-soft"
               }`}
             >
-              {state === "done" ? "✓" : number}
+              {state === "done" ? <IconCheck /> : number}
             </span>
             <span
               className={`text-sm ${state === "active" ? "font-semibold text-ink" : "text-ink-soft"}`}

@@ -41,6 +41,11 @@ def env_path() -> Path:
     return config_dir() / ".env"
 
 
+def rules_path() -> Path:
+    """The wizard-managed rules.yaml — content rules beside config.yaml."""
+    return config_dir() / "rules.yaml"
+
+
 def _cwd_discovery() -> Path | None:
     cwd = Path.cwd()
     for directory in (cwd, *cwd.parents):

@@ -1,15 +1,19 @@
-"""Writes the collected answers to config.yaml and .env.
+"""Writes the collected answers to config.yaml, .env, and rules.yaml.
 
 The wizard writes here first, and the Settings page rewrites through the
 same functions. config.yaml receives only the user's answers; omitted keys
 fall back to the library's defaults, which keeps the file small and lets
 library upgrades improve defaults without editing it. Secrets are written
-to .env with file mode 600 and never appear in the yaml.
+to .env with file mode 600 and never appear in the yaml. rules.yaml holds
+the content rules (classify + split presets) — a pre-existing rules.yaml
+survives wizard re-runs untouched, because rules are user content.
 """
 import os
 
+import yaml
+
 from app import bootstrap
-from app.setup.schemas import ALLOWED_SECRET_KEYS, CompleteRequest
+from app.setup.schemas import ALLOWED_SECRET_KEYS, CompleteRequest, RulesConfig
 
 _PADDLE_DEFAULTS = {"backend": "mlx-vlm-server", "server_url": "http://localhost:8111/"}
 
@@ -57,6 +61,66 @@ def render_env(secrets: dict[str, str]) -> str:
     lines = ["# Written by ingestlib-studio setup. Secrets only; file mode 600."]
     lines += [f"{key}={secrets[key]}" for key in ALLOWED_SECRET_KEYS if key in secrets]
     return "\n".join(lines) + "\n"
+
+
+def render_rules_yaml(rules: RulesConfig) -> str:
+    """Render rules.yaml containing only the non-empty presets."""
+    payload: dict = {}
+    classify: dict = {}
+    if rules.classify.max_pages:
+        classify["max_pages"] = rules.classify.max_pages
+    if rules.classify.target_pages:
+        classify["target_pages"] = rules.classify.target_pages
+    if rules.classify.rules:
+        classify["rules"] = dict(rules.classify.rules)
+    if classify:
+        payload["classify"] = classify
+    if rules.split.categories:
+        split: dict = {"categories": dict(rules.split.categories)}
+        if rules.split.unmatched != "other":  # the default stays unwritten
+            split["unmatched"] = rules.split.unmatched
+        payload["split"] = split
+    header = "# Written by ingestlib-studio Settings. Content rules only.\n"
+    return header + yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+
+
+def read_rules(directory) -> RulesConfig:
+    """Load rules.yaml from `directory` into the editor's shape.
+
+    Absent or empty file → empty rules. Unknown keys are ignored, so a
+    hand-edited file never breaks the Settings page."""
+    path = directory / "rules.yaml"
+    if not path.is_file():
+        return RulesConfig()
+    data = yaml.safe_load(path.read_text()) or {}
+    classify = data.get("classify") or {}
+    split = data.get("split") or {}
+    return RulesConfig(
+        classify={
+            "rules": {str(k): str(v or "") for k, v in (classify.get("rules") or {}).items()},
+            "target_pages": str(classify.get("target_pages") or ""),
+            "max_pages": int(classify.get("max_pages") or 0),
+        },
+        split={
+            "categories": {
+                str(k): str(v or "") for k, v in (split.get("categories") or {}).items()
+            },
+            "unmatched": str(split.get("unmatched") or "other"),
+        },
+    )
+
+
+def write_rules(rules: RulesConfig) -> None:
+    """Write (or remove) the wizard-managed rules.yaml.
+
+    Clearing every rule deletes the file — an absent rules.yaml is the
+    library's honest "open-ended everywhere" state."""
+    path = bootstrap.rules_path()
+    if rules.is_empty():
+        path.unlink(missing_ok=True)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_rules_yaml(rules))
 
 
 def write_and_activate(answers: CompleteRequest) -> str:

@@ -7,9 +7,9 @@ disappear with the job when it is evicted or deleted; that is by design.
 import asyncio
 import hashlib
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app import bootstrap
 from app.documents.schemas import DocumentView
@@ -18,6 +18,7 @@ from app.pipeline import tryit
 from app.pipeline.jobs import TRY_JOBS, JobStatus, TryJob
 from app.routes.sse import stage_events
 from app.routes.uploads import read_document
+from app.setup.schemas import RulesConfig
 
 router = APIRouter(
     prefix="/api/try", tags=["try"],
@@ -67,11 +68,30 @@ def _response(job: TryJob, created: bool = False) -> TryJobResponse:
 
 
 @router.post("", response_model=TryJobResponse)
-async def start(file: UploadFile) -> TryJobResponse:
+async def start(file: UploadFile, rules: str | None = Form(None)) -> TryJobResponse:
+    """Run the try pipeline, optionally with per-run rule overrides.
+
+    `rules` is a JSON-encoded RulesConfig riding alongside the file in the
+    multipart form. It shapes the job key: the same document tried with
+    different rules is a different job, never a cached result."""
     filename, content = await read_document(file)
-    job_id = hashlib.sha256(content).hexdigest()
+    overrides: RulesConfig | None = None
+    if rules:
+        try:
+            overrides = RulesConfig.model_validate_json(rules)
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if overrides.is_empty():
+            overrides = None
+
+    hasher = hashlib.sha256(content)
+    if overrides is not None:
+        hasher.update(overrides.model_dump_json().encode())
+    job_id = hasher.hexdigest()
+
     job, created = TRY_JOBS.create_or_get(job_id, filename)
     if created:
+        job.rules = overrides
         job.upload_path.write_bytes(content)
         job.task = asyncio.create_task(tryit.run(job))
     return _response(job, created=created)

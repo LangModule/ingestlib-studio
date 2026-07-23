@@ -101,7 +101,9 @@ class TryJob(Job):
 
     Results are plain attributes rather than typed fields because this module
     must not import ingestlib; the orchestrator assigns them and the shaping
-    layer reads them."""
+    layer reads them. `rules` carries an optional per-run RulesConfig
+    override — it shapes the job_id, so the same file with different rules
+    is a different job."""
 
     _workdir_prefix = "studio-try-"
 
@@ -110,6 +112,7 @@ class TryJob(Job):
         self.parse_result: Any = None
         self.classify_result: Any = None
         self.split_result: Any = None
+        self.rules: Any = None
 
     def dispose(self) -> None:
         super().dispose()

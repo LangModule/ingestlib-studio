@@ -1,14 +1,19 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { HitView } from "../api/types";
+import type { DocumentSummary, HitView } from "../api/types";
 import { BrandArt } from "../components/BrandArt";
 import { Markdown } from "../components/review/Markdown";
 import { Button, Card } from "../components/setup/ui";
 
 /* Playground: ask a question, see the cited hits, jump to the source.
    Every hit links to its document at the cited page with the source
-   regions pre-lit on the light table. */
+   regions pre-lit on the light table.
+
+   The idle screen is a partition like Try it and Ingest: the question on
+   the left, the library on the right — retrieval can only answer from
+   what is in the store, so "what can I ask about" is shown, not implied.
+   Once a question is asked the page narrows to a reading column. */
 
 type Phase =
   | { name: "idle" }
@@ -19,7 +24,12 @@ type Phase =
 export default function Playground() {
   const [question, setQuestion] = useState("");
   const [phase, setPhase] = useState<Phase>({ name: "idle" });
+  const [documents, setDocuments] = useState<DocumentSummary[] | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    api.documentsList().then(setDocuments).catch(() => setDocuments(null));
+  }, []);
 
   const ask = async () => {
     if (!question.trim()) return;
@@ -45,36 +55,126 @@ export default function Playground() {
       ? `rerank ${hit.rerank_score.toFixed(2)}`
       : `score ${hit.vector_score.toFixed(2)}`;
 
+  const askForm = (
+    <form
+      className="flex gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        ask();
+      }}
+    >
+      <input
+        value={question}
+        onChange={(event) => setQuestion(event.target.value)}
+        placeholder="What would you like to know?"
+        className="flex-1 rounded-lg border border-line bg-field px-3 py-2 text-sm text-ink
+                   outline-none placeholder:text-ink-soft/60 focus:border-accent
+                   focus:ring-1 focus:ring-accent"
+      />
+      <Button type="submit" disabled={phase.name === "asking" || !question.trim()}>
+        {phase.name === "asking" ? "Retrieving…" : "Ask"}
+      </Button>
+    </form>
+  );
+
+  const header = (
+    <header className="mb-6">
+      <h1 className="text-xl font-semibold">Playground</h1>
+      <p className="mt-1 text-sm text-ink-soft">
+        Asks your vector store. Every hit cites its source; click a page to open the
+        document right there, with the source regions lit.
+      </p>
+    </header>
+  );
+
+  if (phase.name === "idle") {
+    return (
+      <div className="w-full px-10 py-12">
+        <BrandArt />
+        {header}
+        <div className="grid items-start gap-8 lg:grid-cols-[2fr_3fr] lg:gap-0">
+          <section className="flex flex-col gap-3 lg:sticky lg:top-8 lg:pr-8">
+            <h2 className="text-sm font-semibold">Question</h2>
+            {askForm}
+            <p className="text-xs text-ink-soft">
+              Hybrid retrieval: your question is embedded, matched against every
+              chunk in the vector store, and the top hits are reranked. Answers
+              always cite the exact page and region they came from.
+            </p>
+          </section>
+          <section className="flex flex-col gap-3 lg:border-l lg:border-line lg:pl-8">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold">
+                What you can ask about
+                {documents && documents.length > 0 && (
+                  <span className="mono ml-2 text-xs font-normal text-ink-soft">
+                    {documents.length} document{documents.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </h2>
+              <Link className="text-xs text-ink-soft underline hover:text-ink" to="/">
+                open the Library
+              </Link>
+            </div>
+            <p className="text-xs text-ink-soft">
+              Retrieval only sees ingested documents — these are the sources every
+              answer draws from.
+            </p>
+            <div className="rounded-lg border border-line">
+              {documents === null && (
+                <p className="px-4 py-4 text-sm text-ink-soft">Loading your library…</p>
+              )}
+              {documents !== null && documents.length === 0 && (
+                <p className="px-4 py-4 text-sm text-ink-soft">
+                  Nothing ingested yet, so there is nothing to retrieve from.{" "}
+                  <Link className="underline hover:text-ink" to="/ingest">
+                    Ingest a document
+                  </Link>{" "}
+                  first.
+                </p>
+              )}
+              {documents !== null &&
+                documents.map((doc, index) => (
+                  <Link
+                    key={doc.doc_id}
+                    to={`/documents/${doc.doc_id}`}
+                    className={`flex items-center gap-4 px-4 py-3 transition hover:bg-card ${
+                      index > 0 ? "border-t border-line" : ""
+                    }`}
+                  >
+                    <div className="shrink-0 rounded border border-line bg-lighttable">
+                      <img
+                        src={doc.thumbnail_url}
+                        alt={doc.filename}
+                        loading="lazy"
+                        className="h-14 w-11 object-contain p-1"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium" title={doc.filename}>
+                        {doc.filename}
+                      </span>
+                      <span className="mono mt-1 inline-block rounded-sm border border-line px-1.5 py-0.5 text-[10px] text-ink-soft">
+                        {doc.category || "uncategorized"}
+                      </span>
+                    </div>
+                    <span className="mono shrink-0 text-xs text-ink-soft">
+                      {doc.page_count} pages · {doc.sections} sections · {doc.chunks} chunks
+                    </span>
+                  </Link>
+                ))}
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
       {phase.name !== "answered" && <BrandArt />}
-      <header className="mb-6">
-        <h1 className="text-xl font-semibold">Playground</h1>
-        <p className="mt-1 text-sm text-ink-soft">
-          Asks your vector store. Every hit cites its source; click a page to open the
-          document right there, with the source regions lit.
-        </p>
-      </header>
-
-      <form
-        className="mb-6 flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          ask();
-        }}
-      >
-        <input
-          value={question}
-          onChange={(event) => setQuestion(event.target.value)}
-          placeholder="What would you like to know?"
-          className="flex-1 rounded-lg border border-line bg-field px-3 py-2 text-sm text-ink
-                     outline-none placeholder:text-ink-soft/60 focus:border-accent
-                     focus:ring-1 focus:ring-accent"
-        />
-        <Button type="submit" disabled={phase.name === "asking" || !question.trim()}>
-          {phase.name === "asking" ? "Retrieving…" : "Ask"}
-        </Button>
-      </form>
+      {header}
+      <div className="mb-6">{askForm}</div>
 
       {phase.name === "failed" && (
         <Card className="border-fail bg-fail-soft">

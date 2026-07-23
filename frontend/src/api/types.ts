@@ -27,6 +27,28 @@ export interface SetupStatus {
 
 export type ArtifactStore = "s3" | "local";
 export type AiProvider = "bedrock" | "openai";
+export type UnmatchedMode = "require" | "other" | "skip";
+
+export interface ClassifyRules {
+  rules: Record<string, string>;
+  target_pages: string;
+  max_pages: number;
+}
+
+export interface SplitRules {
+  categories: Record<string, string>;
+  unmatched: UnmatchedMode;
+}
+
+export interface RulesConfig {
+  classify: ClassifyRules;
+  split: SplitRules;
+}
+
+export interface RulesView {
+  editable: boolean;
+  rules: RulesConfig;
+}
 
 export interface CompleteRequest {
   aws: { profile: string; region: string; account_id: string };

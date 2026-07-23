@@ -10,6 +10,8 @@ import type {
   IngestJobResponse,
   Reranker,
   RetrieveResponse,
+  RulesConfig,
+  RulesView,
   SettingsView,
   SetupStatus,
   StageEvent,
@@ -45,9 +47,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return response.json();
 }
 
-async function upload<T>(path: string, file: File): Promise<T> {
+async function upload<T>(
+  path: string,
+  file: File,
+  fields?: Record<string, string>,
+): Promise<T> {
   const form = new FormData();
   form.append("file", file);
+  for (const [key, value] of Object.entries(fields ?? {})) {
+    form.append(key, value);
+  }
   const response = await fetch(path, { method: "POST", body: form });
   if (!response.ok) {
     throw await errorFrom(response, `upload failed with ${response.status}`);
@@ -100,7 +109,10 @@ export const api = {
   health: () => get<Record<string, CheckResult>>("/api/setup/health"),
   complete: (body: CompleteRequest) => post<SetupStatus>("/api/setup/complete", body),
 
-  tryStart: (file: File) => upload<TryJobResponse>("/api/try", file),
+  tryStart: (file: File, rules?: RulesConfig) =>
+    upload<TryJobResponse>(
+      "/api/try", file, rules ? { rules: JSON.stringify(rules) } : undefined,
+    ),
   tryGet: (jobId: string) => get<TryJobResponse>(`/api/try/${jobId}`),
   tryEventsUrl: (jobId: string) => `/api/try/${jobId}/events`,
   tryDelete: (jobId: string) =>
@@ -138,6 +150,18 @@ export const api = {
     });
     if (!response.ok) {
       throw await errorFrom(response, `save failed with ${response.status}`);
+    }
+    return response.json();
+  },
+  rulesGet: () => get<RulesView>("/api/settings/rules"),
+  rulesUpdate: async (body: RulesConfig): Promise<RulesView> => {
+    const response = await fetch("/api/settings/rules", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw await errorFrom(response, `saving rules failed with ${response.status}`);
     }
     return response.json();
   },

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { CheckResult, FailureKind } from "../../api/types";
 import type { WizardState } from "../../routes/Setup";
+import { IconCheck, IconX } from "../icons";
 import { Button, Card } from "./ui";
 
 type RowState = { status: "idle" | "running" | "ok" | "fail"; result?: CheckResult };
@@ -159,13 +160,13 @@ export function Step3Permissions({
                   </span>
                 )}
                 {rowState.status === "ok" && (
-                  <span className="check-in inline-block font-semibold text-ok">
-                    ✓ {rowState.result?.detail}
+                  <span className="check-in inline-flex items-center gap-1 font-semibold text-ok">
+                    <IconCheck className="h-3 w-3 shrink-0" /> {rowState.result?.detail}
                   </span>
                 )}
                 {rowState.status === "fail" && (
-                  <span className="check-in inline-block font-semibold text-fail">
-                    ✗ {rowState.result?.detail}
+                  <span className="check-in inline-flex items-center gap-1 font-semibold text-fail">
+                    <IconX className="h-3 w-3 shrink-0" /> {rowState.result?.detail}
                   </span>
                 )}
               </span>

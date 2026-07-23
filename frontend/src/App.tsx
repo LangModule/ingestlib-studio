@@ -24,7 +24,7 @@ function Shell({ status, children }: { status: SetupStatus; children: React.Reac
   return (
     <div className="min-h-screen">
       <header className="border-b border-line bg-card">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+        <div className="flex w-full items-center justify-between px-10 py-3">
           <Link to="/" className="wordmark text-sm font-semibold">
             ingestlib<span className="text-accent">·</span>studio
           </Link>

@@ -9,11 +9,13 @@ points to its source on the page.
 ## Status
 
 Every screen is working: the setup wizard, live stack status, Try it
-(in-memory pipeline runs with the page-by-page review shell), Ingest
-(committed runs with live five-stage progress), the Library (browse,
-review, and delete stored documents), the Playground (cited retrieval
-with click-through to the exact page region), and Settings (edit the
-configuration without a restart, plus vector-store backfill).
+(in-memory pipeline runs with the page-by-page review shell, plus per-run
+rule overrides), Ingest (committed runs with live five-stage progress),
+the Library (browse, review, and delete stored documents), the Playground
+(cited retrieval with click-through to the exact page region), and
+Settings (edit the configuration without a restart, vector-store backfill,
+and the content-rules editor — classification rules and split categories
+saved to rules.yaml).
 
 ## Requirements
 

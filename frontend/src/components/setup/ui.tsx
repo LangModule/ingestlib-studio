@@ -1,5 +1,6 @@
 import { useCallback, useState, type ReactNode } from "react";
 import type { CheckResult } from "../../api/types";
+import { IconCheck, IconX } from "../icons";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
@@ -21,7 +22,8 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 
 const inputClass =
   "w-full rounded-lg border border-line bg-field px-3 py-2 text-sm text-ink outline-none " +
-  "placeholder:text-ink-soft/60 focus:border-accent focus:ring-1 focus:ring-accent";
+  "placeholder:text-ink-soft/60 focus:border-accent focus:ring-1 focus:ring-accent " +
+  "disabled:opacity-40";
 
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputClass} ${props.className ?? ""}`} />;
@@ -82,7 +84,9 @@ export function CheckBadge({ state }: { state: CheckState }) {
         ok ? "bg-ok-soft text-ok" : "bg-fail-soft text-fail"
       }`}
     >
-      <span className="font-bold">{ok ? "✓" : "✗"}</span>
+      <span className="mt-0.5">
+        {ok ? <IconCheck className="h-3 w-3" /> : <IconX className="h-3 w-3" />}
+      </span>
       <span>{state.result?.detail}</span>
     </span>
   );

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { IconSparkle } from "./icons";
 
 /* The upload target shared by Try it and Ingest: a dashed drop area that
    also opens the file picker on click. */
@@ -29,7 +30,7 @@ export function Dropzone({
         dragging ? "border-accent bg-accent/5" : "border-line hover:border-ink-soft"
       } ${disabled ? "pointer-events-none opacity-40" : ""}`}
     >
-      <span className="text-2xl text-amber/70" aria-hidden>✦</span>
+      <IconSparkle className="h-7 w-7 text-amber/70" />
       <span className="text-sm font-medium">Drop a document here, or click to choose</span>
       <span className="text-xs text-ink-soft">{hint}</span>
       <input

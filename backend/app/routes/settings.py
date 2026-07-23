@@ -9,6 +9,7 @@ restart.
 """
 import asyncio
 import sys
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -20,7 +21,7 @@ from app.pipeline import backfill
 from app.pipeline.jobs import BACKFILL_JOBS, IngestBusy, IngestJob, JobStatus
 from app.routes.sse import stage_events
 from app.setup import runtime, writer
-from app.setup.schemas import CompleteRequest
+from app.setup.schemas import CompleteRequest, RulesConfig, RulesView
 
 router = APIRouter(
     prefix="/api/settings", tags=["settings"],
@@ -130,6 +131,38 @@ def update_settings(body: CompleteRequest) -> SettingsView:
     _reset_library()
     registry.clear_caches()
     return _view()
+
+
+@router.get("/rules", response_model=RulesView)
+def get_rules() -> RulesView:
+    """The content rules (classify + split presets) beside the active config.
+
+    Reads next to whichever config.yaml is active, so externally managed
+    setups still display their rules — just read-only."""
+    current = _view()
+    return RulesView(
+        editable=current.editable,
+        rules=writer.read_rules(Path(current.config_path).parent),
+    )
+
+
+@router.put("/rules", response_model=RulesView)
+def update_rules(body: RulesConfig) -> RulesView:
+    """Save the content rules and apply them in-process.
+
+    Rules affect FUTURE runs only: already-ingested documents keep their
+    category and sections (backfill re-embeds stored splits — it does not
+    re-classify or re-split)."""
+    current = _view()
+    if not current.editable:
+        raise HTTPException(
+            status_code=409,
+            detail=f"this configuration is managed externally ({current.source}); "
+                   f"edit rules.yaml beside {current.config_path}",
+        )
+    writer.write_rules(body)
+    _reset_library()  # the next classify/split resolves the fresh preset
+    return RulesView(editable=True, rules=writer.read_rules(bootstrap.config_dir()))
 
 
 @router.get("/backfill", response_model=BackfillStatus)

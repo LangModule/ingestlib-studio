@@ -38,6 +38,67 @@ def test_unknown_job_is_404(configured_client):
     assert configured_client.delete("/api/try/deadbeef").status_code == 404
 
 
+@pytest.fixture()
+def stub_pipeline(monkeypatch):
+    """Replace the try pipeline with a no-op so job-key tests never parse."""
+    from app.pipeline import tryit as tryit_module
+    from app.pipeline.jobs import TRY_JOBS
+
+    async def instant(job):
+        return None
+
+    monkeypatch.setattr(tryit_module, "run", instant)
+    yield
+    for job_id in list(TRY_JOBS._jobs):
+        TRY_JOBS.delete(job_id)
+
+
+def test_rules_override_keys_a_distinct_job(configured_client, stub_pipeline):
+    from app.pipeline.jobs import TRY_JOBS
+
+    pdf = MINIMAL_PDF + b"%rules-key-test\n"
+    rules = '{"classify": {"rules": {"invoice": "itemized charges"}}}'
+
+    plain = configured_client.post("/api/try", files={"file": ("a.pdf", pdf)}).json()
+    ruled = configured_client.post(
+        "/api/try", files={"file": ("a.pdf", pdf)}, data={"rules": rules}
+    ).json()
+    assert plain["job_id"] != ruled["job_id"], (
+        "the same file with different rules must never share a cached job"
+    )
+    assert plain["created"] and ruled["created"]
+
+    again = configured_client.post(
+        "/api/try", files={"file": ("a.pdf", pdf)}, data={"rules": rules}
+    ).json()
+    assert again["job_id"] == ruled["job_id"] and not again["created"]
+
+    job = TRY_JOBS.get(ruled["job_id"])
+    assert job.rules.classify.rules == {"invoice": "itemized charges"}
+
+
+def test_empty_rules_override_joins_the_plain_job(configured_client, stub_pipeline):
+    pdf = MINIMAL_PDF + b"%empty-rules-test\n"
+    plain = configured_client.post("/api/try", files={"file": ("a.pdf", pdf)}).json()
+    empty = configured_client.post(
+        "/api/try", files={"file": ("a.pdf", pdf)}, data={"rules": "{}"}
+    ).json()
+    assert empty["job_id"] == plain["job_id"], "no-op overrides must not fork the job"
+
+
+def test_invalid_rules_are_422(configured_client, stub_pipeline):
+    bad_json = configured_client.post(
+        "/api/try", files={"file": ("a.pdf", MINIMAL_PDF)}, data={"rules": "{not json"}
+    )
+    assert bad_json.status_code == 422
+
+    orphan_mode = '{"split": {"categories": {}, "unmatched": "skip"}}'
+    bad_rules = configured_client.post(
+        "/api/try", files={"file": ("a.pdf", MINIMAL_PDF)}, data={"rules": orphan_mode}
+    )
+    assert bad_rules.status_code == 422
+
+
 @pytest.mark.skipif(
     os.environ.get("RUN_STUDIO_TRYIT_E2E") != "1",
     reason="try-it e2e is opt-in: set RUN_STUDIO_TRYIT_E2E=1 (needs the OCR "
